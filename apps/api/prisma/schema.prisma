@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TrashBinStatus {
+  active
+  inactive
+  full
+  maintenance
+  offline
+}
+
+enum TaskStatus {
+  pending
+  in_progress
+  done
+  cancelled
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+model TrashBin {
+  id                  String          @id @default(uuid()) @db.Uuid
+  name                String
+  code                String          @unique
+  locationDescription String?
+  latitude            Float
+  longitude           Float
+  capacityLiters      Int
+  status              TrashBinStatus  @default(active)
+  fillLevel           Int?
+  batteryLevel        Int?
+  lastSeenAt          DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  sensorReadings SensorReading[]
+  tasks          Task[]
+
+  @@map("trash_bins")
+}
+
+model SensorReading {
+  id           String   @id @default(uuid()) @db.Uuid
+  trashBinId   String   @db.Uuid
+  trashBin     TrashBin @relation(fields: [trashBinId], references: [id], onDelete: Cascade)
+  fillLevel    Int
+  batteryLevel Int?
+  temperature  Float?
+  latitude     Float?
+  longitude    Float?
+  payload      Json?
+  receivedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([trashBinId, receivedAt])
+  @@map("sensor_readings")
+}
+
+model Task {
+  id           String       @id @default(uuid()) @db.Uuid
+  title        String
+  description  String?
+  status       TaskStatus   @default(pending)
+  priority     TaskPriority @default(medium)
+  trashBinId   String?      @db.Uuid
+  trashBin     TrashBin?    @relation(fields: [trashBinId], references: [id], onDelete: SetNull)
+  assigneeName String?
+  dueDate      DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("tasks")
+}
