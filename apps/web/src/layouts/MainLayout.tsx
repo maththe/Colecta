@@ -1,61 +1,107 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { cn } from '@/lib/utils';
+import { LayoutDashboard, Map, CheckSquare, Trash2, LogOut } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '../contexts/AuthContext';
 
 interface NavItem {
   to: string;
   label: string;
-  icon: string;
+  Icon: LucideIcon;
 }
 
 const sections: { title?: string; items: NavItem[] }[] = [
   {
-    items: [{ to: '/dashboard', label: 'Dashboard', icon: '◆' }],
+    items: [{ to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard }],
   },
   {
     title: 'Operação',
     items: [
-      { to: '/bins', label: 'Lixeiras', icon: '🗑' },
-      { to: '/map', label: 'Mapa', icon: '🗺' },
-      { to: '/tasks', label: 'Tarefas', icon: '✓' },
+      { to: '/bins', label: 'Lixeiras', Icon: Trash2 },
+      { to: '/map', label: 'Mapa', Icon: Map },
+      { to: '/tasks', label: 'Tarefas', Icon: CheckSquare },
     ],
   },
 ];
 
 export function MainLayout() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
+
+  const initials = user?.name
+    ?.split(' ')
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() ?? '?';
+
   return (
-    <div className="layout">
-      <aside className="sidebar">
-        <div className="sidebar__brand">
-          <div className="sidebar__brand-mark">C</div>
+    <div className="flex min-h-screen">
+      <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col gap-6 border-r border-border bg-sidebar px-4 py-6">
+        <div className="flex items-center gap-3 px-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+            C
+          </div>
           <div>
-            <div className="sidebar__brand-title">Colecta</div>
-            <div className="sidebar__brand-subtitle">Gestão de lixeiras</div>
+            <div className="text-sm font-bold leading-tight">Colecta</div>
+            <div className="text-xs text-muted-foreground">Gestão de lixeiras</div>
           </div>
         </div>
 
         {sections.map((section, idx) => (
-          <nav className="sidebar__nav" key={idx}>
+          <nav className="flex flex-col gap-1" key={idx}>
             {section.title && (
-              <div className="sidebar__section-title">{section.title}</div>
+              <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {section.title}
+              </p>
             )}
             {section.items.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `sidebar__link${isActive ? ' active' : ''}`
+                  cn(
+                    'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
+                    isActive
+                      ? 'bg-primary/10 font-semibold text-primary'
+                      : 'text-foreground hover:bg-muted',
+                  )
                 }
               >
-                <span className="sidebar__icon" aria-hidden>
-                  {item.icon}
-                </span>
+                <item.Icon className="h-4 w-4 shrink-0" />
                 {item.label}
               </NavLink>
             ))}
           </nav>
         ))}
+
+        <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
+          {user && (
+            <div className="flex items-center gap-2.5 px-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{user.name}</div>
+                <div className="truncate text-xs text-muted-foreground">{user.email}</div>
+              </div>
+            </div>
+          )}
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="w-full justify-start">
+            <LogOut className="h-4 w-4" />
+            Sair
+          </Button>
+        </div>
       </aside>
 
-      <main className="content">
+      <main className="flex-1 overflow-x-hidden px-8 py-8">
         <Outlet />
       </main>
     </div>

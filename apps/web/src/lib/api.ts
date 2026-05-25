@@ -1,10 +1,14 @@
 import type {
   CreateTaskInput,
   CreateTrashBinInput,
+  LoginInput,
+  LoginResponse,
   SensorReading,
   Task,
   TrashBin,
+  User,
 } from '../types';
+import { clearToken, getToken } from './auth';
 
 const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ??
@@ -22,10 +26,13 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
+
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
@@ -34,6 +41,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const data = text ? safeParseJson(text) : undefined;
 
   if (!response.ok) {
+    if (response.status === 401 && token) {
+      clearToken();
+      window.dispatchEvent(new Event('auth:unauthorized'));
+    }
+
     const message =
       (data && typeof data === 'object' && 'message' in data
         ? Array.isArray((data as { message: unknown }).message)
@@ -55,6 +67,16 @@ function safeParseJson(text: string): unknown {
 }
 
 export const api = {
+  auth: {
+    login: (data: LoginInput) =>
+      request<LoginResponse>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  },
+  users: {
+    me: () => request<User>('/users/me'),
+  },
   trashBins: {
     list: () => request<TrashBin[]>('/trash-bins'),
     get: (id: string) => request<TrashBin>(`/trash-bins/${id}`),

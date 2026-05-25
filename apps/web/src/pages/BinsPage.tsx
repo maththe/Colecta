@@ -8,6 +8,16 @@ import { BatteryIndicator } from '../components/BatteryIndicator';
 import { Modal } from '../components/Modal';
 import { TrashBinForm } from '../components/TrashBinForm';
 import { formatCoord, formatRelativeTime } from '../lib/format';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Plus } from 'lucide-react';
 
 export function BinsPage() {
   const [bins, setBins] = useState<TrashBin[] | null>(null);
@@ -77,15 +87,18 @@ export function BinsPage() {
   }
 
   return (
-    <>
-      <div className="page-header">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="page-title">Lixeiras</h1>
-          <p className="page-subtitle">Cadastro e monitoramento das lixeiras inteligentes</p>
+          <h1 className="text-2xl font-bold">Lixeiras</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Cadastro e monitoramento das lixeiras inteligentes
+          </p>
         </div>
-        <button className="btn btn--primary" onClick={openCreate}>
-          + Nova lixeira
-        </button>
+        <Button onClick={openCreate}>
+          <Plus className="mr-1 h-4 w-4" />
+          Nova lixeira
+        </Button>
       </div>
 
       {error && <ErrorState message={error} />}
@@ -93,69 +106,59 @@ export function BinsPage() {
       {bins && bins.length === 0 && <EmptyState label="Nenhuma lixeira cadastrada ainda." />}
 
       {bins && bins.length > 0 && (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Nome</th>
-                <th>Status</th>
-                <th>Preenchimento</th>
-                <th>Bateria</th>
-                <th>Última comunicação</th>
-                <th>Localização</th>
-                <th style={{ textAlign: 'right' }}>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Código</TableHead>
+                <TableHead>Nome</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Preenchimento</TableHead>
+                <TableHead>Bateria</TableHead>
+                <TableHead>Última comunicação</TableHead>
+                <TableHead>Localização</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {bins.map((bin) => (
-                <tr key={bin.id}>
-                  <td>
-                    <span className="mono">{bin.code}</span>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{bin.name}</div>
+                <TableRow key={bin.id}>
+                  <TableCell>
+                    <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{bin.code}</span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-semibold">{bin.name}</div>
                     {bin.locationDescription && (
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {bin.locationDescription}
-                      </div>
+                      <div className="text-xs text-muted-foreground">{bin.locationDescription}</div>
                     )}
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     <TrashBinStatusBadge status={bin.status} />
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     <FillBar value={bin.fillLevel} />
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     <BatteryIndicator value={bin.batteryLevel} />
-                  </td>
-                  <td className="nowrap muted">{formatRelativeTime(bin.lastSeenAt)}</td>
-                  <td className="nowrap mono">
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{formatRelativeTime(bin.lastSeenAt)}</TableCell>
+                  <TableCell className="font-mono text-xs">
                     {formatCoord(bin.latitude)}, {formatCoord(bin.longitude)}
-                  </td>
-                  <td>
-                    <div className="table__actions">
-                      <button
-                        type="button"
-                        className="btn btn--secondary"
-                        onClick={() => openEdit(bin)}
-                      >
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openEdit(bin)}>
                         Editar
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn--danger"
-                        onClick={() => handleRemove(bin)}
-                      >
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => handleRemove(bin)}>
                         Excluir
-                      </button>
+                      </Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
 
@@ -165,7 +168,7 @@ export function BinsPage() {
         onClose={closeModal}
       >
         {formError && (
-          <div className="state state--error" style={{ marginBottom: 12 }}>
+          <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {formError}
           </div>
         )}
@@ -176,6 +179,6 @@ export function BinsPage() {
           onSubmit={handleSubmit}
         />
       </Modal>
-    </>
+    </div>
   );
 }

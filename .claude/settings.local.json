@@ -40,7 +40,21 @@
       "Bash(curl -s -I http://localhost:5173/)",
       "Bash(curl -s http://localhost:5173/)",
       "Bash(curl -s -X OPTIONS http://localhost:3333/trash-bins -H \"Origin: http://localhost:5173\" -H \"Access-Control-Request-Method: GET\" -i)",
-      "Bash(python -c \"import sys,json; print\\(len\\(json.load\\(sys.stdin\\)\\), 'bins'\\)\")"
+      "Bash(python -c \"import sys,json; print\\(len\\(json.load\\(sys.stdin\\)\\), 'bins'\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const p = require\\('./node_modules/prisma/package.json'\\); console.log\\(p.version\\)\")",
+      "Bash(prisma --version)",
+      "Bash(npx prisma *)",
+      "Bash(Get-ChildItem -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell($body = '{\"email\":\"teste@colecta.com\",\"name\":\"Teste\",\"senha\":\"123456\"}'; try { $r = Invoke-RestMethod -Uri \"http://localhost:3333/users\" -Method POST -Body $body -ContentType \"application/json\" -TimeoutSec 10 -ErrorAction Stop; Write-Output \"OK\"; $r | ConvertTo-Json } catch { Write-Output \"ERRO: $\\($_.Exception.Message\\)\"; if \\($_.ErrorDetails.Message\\) { Write-Output $_.ErrorDetails.Message } })",
+      "PowerShell(try { $r = Invoke-RestMethod -Uri \"http://localhost:3333/health\" -Method GET -TimeoutSec 5 -ErrorAction Stop; Write-Output \"HEALTH OK:\"; $r | ConvertTo-Json } catch { Write-Output \"HEALTH ERRO: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(try { $r = Invoke-RestMethod -Uri \"http://localhost:3333/trash-bins\" -Method GET -TimeoutSec 5 -ErrorAction Stop; Write-Output \"TRASH-BINS OK\"; $r | ConvertTo-Json } catch { Write-Output \"TRASH-BINS ERRO: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(Test-NetConnection *)",
+      "PowerShell(Get-CimInstance *)",
+      "PowerShell($body = '{\"email\":\"teste@colecta.com\",\"name\":\"Teste\",\"senha\":\"123456\"}'; try { $r = Invoke-RestMethod -Uri \"http://localhost:3333/users\" -Method POST -Body $body -ContentType \"application/json\" -TimeoutSec 10 -ErrorAction Stop; Write-Output \"CADASTRO OK:\"; $r | ConvertTo-Json } catch { Write-Output \"CADASTRO ERRO: $\\($_.Exception.Message\\)\"; if \\($_.ErrorDetails.Message\\) { Write-Output $_.ErrorDetails.Message } })",
+      "PowerShell($body = '{\"email\":\"teste@colecta.com\",\"senha\":\"123456\"}'; try { $r = Invoke-RestMethod -Uri \"http://localhost:3333/auth/login\" -Method POST -Body $body -ContentType \"application/json\" -TimeoutSec 10 -ErrorAction Stop; Write-Output \"LOGIN OK:\"; $r | ConvertTo-Json; $token = $r.access_token; Write-Output \"`n--- testando /users/me com o token ---\"; $me = Invoke-RestMethod -Uri \"http://localhost:3333/users/me\" -Method GET -Headers @{Authorization = \"Bearer $token\"} -TimeoutSec 10; $me | ConvertTo-Json } catch { Write-Output \"ERRO: $\\($_.Exception.Message\\)\"; if \\($_.ErrorDetails.Message\\) { Write-Output $_.ErrorDetails.Message } })"
     ]
   }
 }

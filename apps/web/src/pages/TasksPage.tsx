@@ -6,6 +6,16 @@ import { TaskPriorityBadge, TaskStatusBadge } from '../components/StatusBadge';
 import { Modal } from '../components/Modal';
 import { TaskForm } from '../components/TaskForm';
 import { formatDateTime } from '../lib/format';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Plus } from 'lucide-react';
 
 export function TasksPage() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
@@ -77,15 +87,18 @@ export function TasksPage() {
   }
 
   return (
-    <>
-      <div className="page-header">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="page-title">Tarefas</h1>
-          <p className="page-subtitle">Manutenção, coleta e ações operacionais</p>
+          <h1 className="text-2xl font-bold">Tarefas</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manutenção, coleta e ações operacionais
+          </p>
         </div>
-        <button className="btn btn--primary" onClick={openCreate}>
-          + Nova tarefa
-        </button>
+        <Button onClick={openCreate}>
+          <Plus className="mr-1 h-4 w-4" />
+          Nova tarefa
+        </Button>
       </div>
 
       {error && <ErrorState message={error} />}
@@ -93,67 +106,59 @@ export function TasksPage() {
       {tasks && tasks.length === 0 && <EmptyState label="Nenhuma tarefa criada ainda." />}
 
       {tasks && tasks.length > 0 && (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Título</th>
-                <th>Status</th>
-                <th>Prioridade</th>
-                <th>Lixeira</th>
-                <th>Responsável</th>
-                <th>Prazo</th>
-                <th style={{ textAlign: 'right' }}>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Título</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Prioridade</TableHead>
+                <TableHead>Lixeira</TableHead>
+                <TableHead>Responsável</TableHead>
+                <TableHead>Prazo</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {tasks.map((task) => (
-                <tr key={task.id}>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{task.title}</div>
+                <TableRow key={task.id}>
+                  <TableCell>
+                    <div className="font-semibold">{task.title}</div>
                     {task.description && (
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {task.description}
-                      </div>
+                      <div className="text-xs text-muted-foreground">{task.description}</div>
                     )}
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     <TaskStatusBadge status={task.status} />
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     <TaskPriorityBadge priority={task.priority} />
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     {task.trashBin ? (
-                      <span className="mono">{task.trashBin.code}</span>
+                      <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                        {task.trashBin.code}
+                      </span>
                     ) : (
-                      <span className="muted">—</span>
+                      <span className="text-muted-foreground">—</span>
                     )}
-                  </td>
-                  <td>{task.assigneeName ?? <span className="muted">—</span>}</td>
-                  <td className="nowrap">{formatDateTime(task.dueDate)}</td>
-                  <td>
-                    <div className="table__actions">
-                      <button
-                        type="button"
-                        className="btn btn--secondary"
-                        onClick={() => openEdit(task)}
-                      >
+                  </TableCell>
+                  <TableCell>{task.assigneeName ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell className="text-sm">{formatDateTime(task.dueDate)}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openEdit(task)}>
                         Editar
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn--danger"
-                        onClick={() => handleRemove(task)}
-                      >
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => handleRemove(task)}>
                         Excluir
-                      </button>
+                      </Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
 
@@ -163,7 +168,7 @@ export function TasksPage() {
         onClose={closeModal}
       >
         {formError && (
-          <div className="state state--error" style={{ marginBottom: 12 }}>
+          <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {formError}
           </div>
         )}
@@ -175,6 +180,6 @@ export function TasksPage() {
           onSubmit={handleSubmit}
         />
       </Modal>
-    </>
+    </div>
   );
 }
