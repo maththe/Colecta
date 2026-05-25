@@ -18,6 +18,7 @@ export class UsersService {
         email: createUserInput.email,
         name: createUserInput.name,
         password,
+        role: createUserInput.role || 'FUNCIONARIO',
         ...(tenantUuid ? { tenantUuid } : {}),
       },
     });

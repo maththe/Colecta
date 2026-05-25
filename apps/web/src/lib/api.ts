@@ -76,6 +76,8 @@ export const api = {
   },
   users: {
     me: () => request<User>('/users/me'),
+    list: (search?: string) =>
+      request<User[]>(`/users/lista${search ? `?search=${encodeURIComponent(search)}` : ''}`),
   },
   trashBins: {
     list: () => request<TrashBin[]>('/trash-bins'),

@@ -8,6 +8,7 @@ import { BatteryIndicator } from '../components/BatteryIndicator';
 import { Modal } from '../components/Modal';
 import { TrashBinForm } from '../components/TrashBinForm';
 import { formatCoord, formatRelativeTime } from '../lib/format';
+import { useAuth } from '../contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -20,12 +21,14 @@ import {
 import { Plus } from 'lucide-react';
 
 export function BinsPage() {
+  const { user } = useAuth();
   const [bins, setBins] = useState<TrashBin[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TrashBin | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const canManageBins = user?.role === 'ADMIN';
 
   async function load() {
     setError(null);
@@ -42,12 +45,14 @@ export function BinsPage() {
   }, []);
 
   function openCreate() {
+    if (!canManageBins) return;
     setEditing(null);
     setFormError(null);
     setModalOpen(true);
   }
 
   function openEdit(bin: TrashBin) {
+    if (!canManageBins) return;
     setEditing(bin);
     setFormError(null);
     setModalOpen(true);
@@ -59,6 +64,7 @@ export function BinsPage() {
   }
 
   async function handleSubmit(values: CreateTrashBinInput) {
+    if (!canManageBins) return;
     setSubmitting(true);
     setFormError(null);
     try {
@@ -77,6 +83,7 @@ export function BinsPage() {
   }
 
   async function handleRemove(bin: TrashBin) {
+    if (!canManageBins) return;
     if (!confirm(`Excluir a lixeira "${bin.name}"?`)) return;
     try {
       await api.trashBins.remove(bin.id);
@@ -95,10 +102,12 @@ export function BinsPage() {
             Cadastro e monitoramento das lixeiras inteligentes
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-1 h-4 w-4" />
-          Nova lixeira
-        </Button>
+        {canManageBins && (
+          <Button onClick={openCreate}>
+            <Plus className="mr-1 h-4 w-4" />
+            Nova lixeira
+          </Button>
+        )}
       </div>
 
       {error && <ErrorState message={error} />}
@@ -117,7 +126,7 @@ export function BinsPage() {
                 <TableHead>Bateria</TableHead>
                 <TableHead>Última comunicação</TableHead>
                 <TableHead>Localização</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                {canManageBins && <TableHead className="text-right">Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -145,16 +154,18 @@ export function BinsPage() {
                   <TableCell className="font-mono text-xs">
                     {formatCoord(bin.latitude)}, {formatCoord(bin.longitude)}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => openEdit(bin)}>
-                        Editar
-                      </Button>
-                      <Button variant="destructive" size="sm" onClick={() => handleRemove(bin)}>
-                        Excluir
-                      </Button>
-                    </div>
-                  </TableCell>
+                  {canManageBins && (
+                    <TableCell>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => openEdit(bin)}>
+                          Editar
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleRemove(bin)}>
+                          Excluir
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -162,23 +173,25 @@ export function BinsPage() {
         </div>
       )}
 
-      <Modal
-        open={modalOpen}
-        title={editing ? 'Editar lixeira' : 'Nova lixeira'}
-        onClose={closeModal}
-      >
-        {formError && (
-          <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-            {formError}
-          </div>
-        )}
-        <TrashBinForm
-          initial={editing}
-          submitting={submitting}
-          onCancel={closeModal}
-          onSubmit={handleSubmit}
-        />
-      </Modal>
+      {canManageBins && (
+        <Modal
+          open={modalOpen}
+          title={editing ? 'Editar lixeira' : 'Nova lixeira'}
+          onClose={closeModal}
+        >
+          {formError && (
+            <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {formError}
+            </div>
+          )}
+          <TrashBinForm
+            initial={editing}
+            submitting={submitting}
+            onCancel={closeModal}
+            onSubmit={handleSubmit}
+          />
+        </Modal>
+      )}
     </div>
   );
 }
