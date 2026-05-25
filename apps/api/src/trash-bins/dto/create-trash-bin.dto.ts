@@ -1,43 +1,39 @@
-import { Type } from 'class-transformer';
 import {
   IsEnum,
   IsInt,
-  IsNumber,
+  IsLatitude,
+  IsLongitude,
+  IsNotEmpty,
   IsOptional,
   IsString,
   Max,
-  Min,
   MaxLength,
+  Min,
 } from 'class-validator';
 import { TrashBinStatus } from '@prisma/client';
 
 export class CreateTrashBinDto {
   @IsString()
+  @IsNotEmpty()
   @MaxLength(120)
   name!: string;
 
   @IsString()
+  @IsNotEmpty()
   @MaxLength(60)
   code!: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(255)
-  locationDescription?: string | null;
+  @MaxLength(500)
+  locationDescription?: string;
 
-  @Type(() => Number)
-  @IsNumber()
-  @Min(-90)
-  @Max(90)
+  @IsLatitude()
   latitude!: number;
 
-  @Type(() => Number)
-  @IsNumber()
-  @Min(-180)
-  @Max(180)
+  @IsLongitude()
   longitude!: number;
 
-  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100000)
@@ -48,16 +44,14 @@ export class CreateTrashBinDto {
   status?: TrashBinStatus;
 
   @IsOptional()
-  @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(100)
-  fillLevel?: number | null;
+  fillLevel?: number;
 
   @IsOptional()
-  @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(100)
-  batteryLevel?: number | null;
+  batteryLevel?: number;
 }

@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = "postgresql://colecta:colecta@localhost:5433/colecta?schema=public"
 }
 
 enum TrashBinStatus {
@@ -29,24 +29,44 @@ enum TaskPriority {
   urgent
 }
 
+enum UserRole {
+  ADMIN
+  FUNCIONARIO
+}
+
+model User {
+  id         String   @id @default(uuid())
+  name       String
+  email      String   @unique
+  password   String
+  tenantUuid String   @default(uuid())
+  role       UserRole @default(FUNCIONARIO)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
 model TrashBin {
-  id                  String          @id @default(uuid()) @db.Uuid
+  id                  String         @id @default(uuid()) @db.Uuid
   name                String
-  code                String          @unique
+  code                String         @unique
   locationDescription String?
   latitude            Float
   longitude           Float
   capacityLiters      Int
-  status              TrashBinStatus  @default(active)
+  status              TrashBinStatus @default(active)
   fillLevel           Int?
   batteryLevel        Int?
   lastSeenAt          DateTime?
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   sensorReadings SensorReading[]
   tasks          Task[]
 
+  @@index([status])
   @@map("trash_bins")
 }
 
@@ -80,5 +100,7 @@ model Task {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
+  @@index([status])
+  @@index([trashBinId])
   @@map("tasks")
 }

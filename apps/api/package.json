@@ -2,27 +2,29 @@
   "name": "@colecta/api",
   "version": "0.1.0",
   "private": true,
-  "description": "Colecta API - smart trash bin management",
+  "description": "Colecta API - NestJS + Prisma",
   "scripts": {
     "build": "nest build",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
+    "dev": "nest start --watch",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate deploy",
-    "prisma:migrate:dev": "prisma migrate dev",
-    "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
-    "prisma:reset": "prisma migrate reset --force"
-  },
-  "prisma": {
-    "seed": "ts-node --transpile-only prisma/seed.ts"
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:seed": "prisma db seed",
+    "prisma:reset": "prisma migrate reset --force",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",
     "@nestjs/config": "^3.3.0",
     "@nestjs/core": "^10.4.15",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/mapped-types": "^2.0.6",
     "@nestjs/platform-express": "^10.4.15",
     "@prisma/client": "^5.22.0",
+    "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "reflect-metadata": "^0.2.2",
@@ -31,11 +33,16 @@
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",
     "@nestjs/schematics": "^10.2.3",
-    "@types/express": "^5.0.0",
-    "@types/node": "^20.19.0",
+    "@types/bcryptjs": "^3.0.0",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.17.10",
     "prisma": "^5.22.0",
+    "ts-loader": "^9.5.1",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.2"
+  },
+  "prisma": {
+    "seed": "ts-node --transpile-only prisma/seed.ts"
   }
 }

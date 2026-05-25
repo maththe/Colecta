@@ -8,6 +8,10 @@ import {
   type TaskStatus,
   type TrashBin,
 } from '../types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Props {
   initial?: Task | null;
@@ -35,6 +39,9 @@ function toLocalInput(iso: string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+const selectClass =
+  'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50';
+
 export function TaskForm({ initial, bins, submitting, onCancel, onSubmit }: Props) {
   const {
     register,
@@ -58,7 +65,6 @@ export function TaskForm({ initial, bins, submitting, onCancel, onSubmit }: Prop
     const trimmedAssignee = values.assigneeName?.trim() ?? '';
     const payload: CreateTaskInput = {
       title: values.title.trim(),
-      // On edit, sending null lets the backend clear the field; on create, undefined is omitted.
       description: trimmedDesc ? trimmedDesc : isEditing ? null : undefined,
       status: values.status,
       priority: values.priority,
@@ -74,37 +80,26 @@ export function TaskForm({ initial, bins, submitting, onCancel, onSubmit }: Prop
   });
 
   return (
-    <form className="form" onSubmit={submit} noValidate>
-      <div className="form__field">
-        <label className="form__label" htmlFor="task-title">
-          Título
-        </label>
-        <input
+    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="task-title">Título</Label>
+        <Input
           id="task-title"
-          className="form__input"
           {...register('title', { required: 'Informe o título' })}
+          aria-invalid={!!errors.title}
         />
-        {errors.title && <span className="form__error">{errors.title.message}</span>}
+        {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
       </div>
 
-      <div className="form__field">
-        <label className="form__label" htmlFor="task-desc">
-          Descrição
-        </label>
-        <textarea
-          id="task-desc"
-          className="form__textarea"
-          rows={3}
-          {...register('description')}
-        />
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="task-desc">Descrição</Label>
+        <Textarea id="task-desc" rows={3} {...register('description')} />
       </div>
 
-      <div className="form__row">
-        <div className="form__field">
-          <label className="form__label" htmlFor="task-status">
-            Status
-          </label>
-          <select id="task-status" className="form__select" {...register('status')}>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="task-status">Status</Label>
+          <select id="task-status" className={selectClass} {...register('status')}>
             {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -112,15 +107,9 @@ export function TaskForm({ initial, bins, submitting, onCancel, onSubmit }: Prop
             ))}
           </select>
         </div>
-        <div className="form__field">
-          <label className="form__label" htmlFor="task-priority">
-            Prioridade
-          </label>
-          <select
-            id="task-priority"
-            className="form__select"
-            {...register('priority')}
-          >
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="task-priority">Prioridade</Label>
+          <select id="task-priority" className={selectClass} {...register('priority')}>
             {Object.entries(TASK_PRIORITY_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -130,11 +119,9 @@ export function TaskForm({ initial, bins, submitting, onCancel, onSubmit }: Prop
         </div>
       </div>
 
-      <div className="form__field">
-        <label className="form__label" htmlFor="task-bin">
-          Lixeira relacionada
-        </label>
-        <select id="task-bin" className="form__select" {...register('trashBinId')}>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="task-bin">Lixeira relacionada</Label>
+        <select id="task-bin" className={selectClass} {...register('trashBinId')}>
           <option value="">— Nenhuma —</option>
           {bins.map((bin) => (
             <option key={bin.id} value={bin.id}>
@@ -144,37 +131,24 @@ export function TaskForm({ initial, bins, submitting, onCancel, onSubmit }: Prop
         </select>
       </div>
 
-      <div className="form__row">
-        <div className="form__field">
-          <label className="form__label" htmlFor="task-assignee">
-            Responsável
-          </label>
-          <input
-            id="task-assignee"
-            className="form__input"
-            {...register('assigneeName')}
-          />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="task-assignee">Responsável</Label>
+          <Input id="task-assignee" {...register('assigneeName')} />
         </div>
-        <div className="form__field">
-          <label className="form__label" htmlFor="task-due">
-            Data limite
-          </label>
-          <input
-            id="task-due"
-            type="datetime-local"
-            className="form__input"
-            {...register('dueDate')}
-          />
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="task-due">Data limite</Label>
+          <Input id="task-due" type="datetime-local" {...register('dueDate')} />
         </div>
       </div>
 
-      <div className="form__actions">
-        <button type="button" className="btn btn--secondary" onClick={onCancel}>
+      <div className="flex justify-end gap-2 pt-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
-        </button>
-        <button type="submit" className="btn btn--primary" disabled={submitting}>
+        </Button>
+        <Button type="submit" disabled={submitting}>
           {submitting ? 'Salvando...' : initial ? 'Salvar' : 'Criar tarefa'}
-        </button>
+        </Button>
       </div>
     </form>
   );

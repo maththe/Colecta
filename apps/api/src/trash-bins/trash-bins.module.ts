@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { TrashBinsController } from './trash-bins.controller';
 import { TrashBinsService } from './trash-bins.service';
+import { TrashBinsController } from './trash-bins.controller';
 
 @Module({
   controllers: [TrashBinsController],

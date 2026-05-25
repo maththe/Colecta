@@ -1,9 +1,5 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Prisma, TrashBin } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTrashBinDto } from './dto/create-trash-bin.dto';
 import { UpdateTrashBinDto } from './dto/update-trash-bin.dto';
@@ -12,79 +8,42 @@ import { UpdateTrashBinDto } from './dto/update-trash-bin.dto';
 export class TrashBinsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list() {
-    return this.prisma.trashBin.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll(): Promise<TrashBin[]> {
+    return this.prisma.trashBin.findMany({ orderBy: { createdAt: 'desc' } });
   }
 
-  async get(id: string) {
+  async findOne(id: string): Promise<TrashBin> {
     const bin = await this.prisma.trashBin.findUnique({ where: { id } });
-    if (!bin) throw new NotFoundException(`Lixeira ${id} não encontrada`);
+    if (!bin) throw new NotFoundException(`TrashBin ${id} not found`);
     return bin;
   }
 
-  async create(data: CreateTrashBinDto) {
+  async create(dto: CreateTrashBinDto): Promise<TrashBin> {
     try {
-      return await this.prisma.trashBin.create({
-        data: {
-          name: data.name,
-          code: data.code,
-          locationDescription: data.locationDescription ?? null,
-          latitude: data.latitude,
-          longitude: data.longitude,
-          capacityLiters: data.capacityLiters,
-          status: data.status,
-          fillLevel: data.fillLevel ?? null,
-          batteryLevel: data.batteryLevel ?? null,
-        },
-      });
+      return await this.prisma.trashBin.create({ data: dto });
     } catch (err) {
-      this.handleUniqueError(err, data.code);
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException(`A trash bin with code "${dto.code}" already exists`);
+      }
       throw err;
     }
   }
 
-  async update(id: string, data: UpdateTrashBinDto) {
-    await this.get(id);
+  async update(id: string, dto: UpdateTrashBinDto): Promise<TrashBin> {
+    await this.findOne(id);
     try {
-      return await this.prisma.trashBin.update({
-        where: { id },
-        data: {
-          name: data.name,
-          code: data.code,
-          locationDescription:
-            data.locationDescription === undefined
-              ? undefined
-              : data.locationDescription,
-          latitude: data.latitude,
-          longitude: data.longitude,
-          capacityLiters: data.capacityLiters,
-          status: data.status,
-          fillLevel: data.fillLevel,
-          batteryLevel: data.batteryLevel,
-        },
-      });
+      return await this.prisma.trashBin.update({ where: { id }, data: dto });
     } catch (err) {
-      this.handleUniqueError(err, data.code);
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException(`A trash bin with code "${dto.code}" already exists`);
+      }
       throw err;
     }
   }
 
-  async remove(id: string) {
-    await this.get(id);
+  async remove(id: string): Promise<{ id: string }> {
+    await this.findOne(id);
     await this.prisma.trashBin.delete({ where: { id } });
     return { id };
-  }
-
-  private handleUniqueError(err: unknown, code?: string): void {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === 'P2002'
-    ) {
-      throw new ConflictException(
-        `Código de lixeira${code ? ` "${code}"` : ''} já está em uso`,
-      );
-    }
   }
 }

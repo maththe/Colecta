@@ -1,5 +1,8 @@
 import { useForm } from 'react-hook-form';
 import type { CreateTrashBinInput, TrashBin } from '../types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface Props {
   initial?: TrashBin | null;
@@ -46,54 +49,44 @@ export function TrashBinForm({ initial, submitting, onCancel, onSubmit }: Props)
   });
 
   return (
-    <form className="form" onSubmit={submit} noValidate>
-      <div className="form__field">
-        <label className="form__label" htmlFor="bin-name">
-          Nome
-        </label>
-        <input
+    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="bin-name">Nome</Label>
+        <Input
           id="bin-name"
-          className="form__input"
           {...register('name', { required: 'Informe o nome' })}
+          aria-invalid={!!errors.name}
         />
-        {errors.name && <span className="form__error">{errors.name.message}</span>}
+        {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
       </div>
 
-      <div className="form__field">
-        <label className="form__label" htmlFor="bin-code">
-          Código
-        </label>
-        <input
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="bin-code">Código</Label>
+        <Input
           id="bin-code"
-          className="form__input"
           placeholder="ex: PRQ-001"
           {...register('code', { required: 'Informe o código' })}
+          aria-invalid={!!errors.code}
         />
-        {errors.code && <span className="form__error">{errors.code.message}</span>}
+        {errors.code && <p className="text-xs text-destructive">{errors.code.message}</p>}
       </div>
 
-      <div className="form__field">
-        <label className="form__label" htmlFor="bin-loc">
-          Descrição / localização
-        </label>
-        <input
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="bin-loc">Descrição / localização</Label>
+        <Input
           id="bin-loc"
-          className="form__input"
           placeholder="Próxima ao quiosque"
           {...register('locationDescription')}
         />
       </div>
 
-      <div className="form__row">
-        <div className="form__field">
-          <label className="form__label" htmlFor="bin-lat">
-            Latitude
-          </label>
-          <input
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="bin-lat">Latitude</Label>
+          <Input
             id="bin-lat"
             type="number"
             step="any"
-            className="form__input"
             {...register('latitude', {
               required: 'Informe a latitude',
               validate: (v) => {
@@ -103,20 +96,16 @@ export function TrashBinForm({ initial, submitting, onCancel, onSubmit }: Props)
                 return true;
               },
             })}
+            aria-invalid={!!errors.latitude}
           />
-          {errors.latitude && (
-            <span className="form__error">{errors.latitude.message}</span>
-          )}
+          {errors.latitude && <p className="text-xs text-destructive">{errors.latitude.message}</p>}
         </div>
-        <div className="form__field">
-          <label className="form__label" htmlFor="bin-lng">
-            Longitude
-          </label>
-          <input
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="bin-lng">Longitude</Label>
+          <Input
             id="bin-lng"
             type="number"
             step="any"
-            className="form__input"
             {...register('longitude', {
               required: 'Informe a longitude',
               validate: (v) => {
@@ -126,22 +115,18 @@ export function TrashBinForm({ initial, submitting, onCancel, onSubmit }: Props)
                 return true;
               },
             })}
+            aria-invalid={!!errors.longitude}
           />
-          {errors.longitude && (
-            <span className="form__error">{errors.longitude.message}</span>
-          )}
+          {errors.longitude && <p className="text-xs text-destructive">{errors.longitude.message}</p>}
         </div>
       </div>
 
-      <div className="form__field">
-        <label className="form__label" htmlFor="bin-cap">
-          Capacidade (litros)
-        </label>
-        <input
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="bin-cap">Capacidade (litros)</Label>
+        <Input
           id="bin-cap"
           type="number"
           min={1}
-          className="form__input"
           {...register('capacityLiters', {
             required: 'Informe a capacidade',
             validate: (v) => {
@@ -150,19 +135,20 @@ export function TrashBinForm({ initial, submitting, onCancel, onSubmit }: Props)
               return true;
             },
           })}
+          aria-invalid={!!errors.capacityLiters}
         />
         {errors.capacityLiters && (
-          <span className="form__error">{errors.capacityLiters.message}</span>
+          <p className="text-xs text-destructive">{errors.capacityLiters.message}</p>
         )}
       </div>
 
-      <div className="form__actions">
-        <button type="button" className="btn btn--secondary" onClick={onCancel}>
+      <div className="flex justify-end gap-2 pt-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
-        </button>
-        <button type="submit" className="btn btn--primary" disabled={submitting}>
+        </Button>
+        <Button type="submit" disabled={submitting}>
           {submitting ? 'Salvando...' : initial ? 'Salvar alterações' : 'Cadastrar'}
-        </button>
+        </Button>
       </div>
     </form>
   );

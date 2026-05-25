@@ -34,12 +34,10 @@ export function MapPage() {
   }, [bins]);
 
   return (
-    <>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Mapa</h1>
-          <p className="page-subtitle">Localização das lixeiras em tempo real</p>
-        </div>
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-bold">Mapa</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Localização das lixeiras em tempo real</p>
       </div>
 
       {error && <ErrorState message={error} />}
@@ -48,10 +46,10 @@ export function MapPage() {
         <EmptyState label="Sem lixeiras cadastradas para exibir no mapa." />
       )}
       {bins && bins.length > 0 && (
-        <div className="map-wrap">
+        <div className="min-h-[480px] overflow-hidden rounded-xl border border-border" style={{ height: 'calc(100vh - 200px)' }}>
           <TrashBinMap bins={bins} center={center} />
         </div>
       )}
-    </>
+    </div>
   );
 }

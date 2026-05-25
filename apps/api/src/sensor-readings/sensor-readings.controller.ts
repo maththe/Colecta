@@ -16,18 +16,18 @@ export class SensorReadingsController {
   constructor(private readonly service: SensorReadingsService) {}
 
   @Get()
-  list() {
-    return this.service.list();
+  findAll() {
+    return this.service.findAll();
   }
 
   @Get('trash-bin/:trashBinId')
-  listByBin(@Param('trashBinId', new ParseUUIDPipe()) trashBinId: string) {
-    return this.service.listByBin(trashBinId);
+  findByTrashBin(@Param('trashBinId', new ParseUUIDPipe()) trashBinId: string) {
+    return this.service.findByTrashBin(trashBinId);
   }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() body: CreateSensorReadingDto) {
-    return this.service.create(body);
+  create(@Body() dto: CreateSensorReadingDto) {
+    return this.service.create(dto);
   }
 }

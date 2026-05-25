@@ -55,24 +55,12 @@ export function TrashBinMap({ bins, center }: Props) {
           icon={buildIcon(STATUS_COLOR[bin.status])}
         >
           <Popup>
-            <p className="map-popup__title">{bin.name}</p>
-            <p className="map-popup__row">
-              <strong>Código:</strong> {bin.code}
-            </p>
-            <p className="map-popup__row">
-              <strong>Status:</strong> {TRASH_BIN_STATUS_LABELS[bin.status]}
-            </p>
-            <p className="map-popup__row">
-              <strong>Preenchimento:</strong>{' '}
-              {bin.fillLevel !== null ? `${bin.fillLevel}%` : '—'}
-            </p>
-            <p className="map-popup__row">
-              <strong>Bateria:</strong>{' '}
-              {bin.batteryLevel !== null ? `${bin.batteryLevel}%` : '—'}
-            </p>
-            <p className="map-popup__row">
-              <strong>Última leitura:</strong> {formatRelativeTime(bin.lastSeenAt)}
-            </p>
+            <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{bin.name}</p>
+            <p style={{ fontSize: 12, margin: '2px 0' }}><strong>Código:</strong> {bin.code}</p>
+            <p style={{ fontSize: 12, margin: '2px 0' }}><strong>Status:</strong> {TRASH_BIN_STATUS_LABELS[bin.status]}</p>
+            <p style={{ fontSize: 12, margin: '2px 0' }}><strong>Preenchimento:</strong>{' '}{bin.fillLevel !== null ? `${bin.fillLevel}%` : '—'}</p>
+            <p style={{ fontSize: 12, margin: '2px 0' }}><strong>Bateria:</strong>{' '}{bin.batteryLevel !== null ? `${bin.batteryLevel}%` : '—'}</p>
+            <p style={{ fontSize: 12, margin: '2px 0' }}><strong>Última leitura:</strong> {formatRelativeTime(bin.lastSeenAt)}</p>
           </Popup>
         </Marker>
       ))}
