@@ -1,27 +1,25 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, TrashBinStatus } from '@prisma/client';
+import { Prisma, SensorReading, TrashBinStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSensorReadingDto } from './dto/create-sensor-reading.dto';
+
+const FILL_LEVEL_FULL_THRESHOLD = 90;
 
 @Injectable()
 export class SensorReadingsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list() {
+  async findAll(): Promise<SensorReading[]> {
     return this.prisma.sensorReading.findMany({
       orderBy: { receivedAt: 'desc' },
       take: 200,
     });
   }
 
-  async listByBin(trashBinId: string) {
-    const bin = await this.prisma.trashBin.findUnique({
-      where: { id: trashBinId },
-      select: { id: true },
-    });
-    if (!bin) {
-      throw new NotFoundException(`Lixeira ${trashBinId} não encontrada`);
-    }
+  async findByTrashBin(trashBinId: string): Promise<SensorReading[]> {
+    const bin = await this.prisma.trashBin.findUnique({ where: { id: trashBinId } });
+    if (!bin) throw new NotFoundException(`TrashBin ${trashBinId} not found`);
+
     return this.prisma.sensorReading.findMany({
       where: { trashBinId },
       orderBy: { receivedAt: 'desc' },
@@ -29,42 +27,31 @@ export class SensorReadingsService {
     });
   }
 
-  async create(data: CreateSensorReadingDto) {
-    const bin = await this.prisma.trashBin.findUnique({
-      where: { id: data.trashBinId },
-    });
-    if (!bin) {
-      throw new NotFoundException(`Lixeira ${data.trashBinId} não encontrada`);
-    }
+  async create(dto: CreateSensorReadingDto): Promise<SensorReading> {
+    const bin = await this.prisma.trashBin.findUnique({ where: { id: dto.trashBinId } });
+    if (!bin) throw new NotFoundException(`TrashBin ${dto.trashBinId} not found`);
 
-    const receivedAt = data.receivedAt ? new Date(data.receivedAt) : new Date();
-
-    const nextStatus = this.computeStatus(bin.status, data.fillLevel);
+    const receivedAt = dto.receivedAt ? new Date(dto.receivedAt) : new Date();
+    const nextStatus = this.computeNextStatus(bin.status, dto.fillLevel);
 
     const [reading] = await this.prisma.$transaction([
       this.prisma.sensorReading.create({
         data: {
-          trashBinId: data.trashBinId,
-          fillLevel: data.fillLevel,
-          batteryLevel: data.batteryLevel ?? null,
-          temperature: data.temperature ?? null,
-          latitude: data.latitude ?? null,
-          longitude: data.longitude ?? null,
-          payload:
-            data.payload === undefined
-              ? Prisma.JsonNull
-              : (data.payload as Prisma.InputJsonValue),
+          trashBinId: dto.trashBinId,
+          fillLevel: dto.fillLevel,
+          batteryLevel: dto.batteryLevel ?? null,
+          temperature: dto.temperature ?? null,
+          latitude: dto.latitude ?? null,
+          longitude: dto.longitude ?? null,
+          payload: (dto.payload as Prisma.InputJsonValue) ?? Prisma.JsonNull,
           receivedAt,
         },
       }),
       this.prisma.trashBin.update({
-        where: { id: data.trashBinId },
+        where: { id: dto.trashBinId },
         data: {
-          fillLevel: data.fillLevel,
-          batteryLevel:
-            data.batteryLevel === undefined
-              ? undefined
-              : data.batteryLevel,
+          fillLevel: dto.fillLevel,
+          batteryLevel: dto.batteryLevel ?? bin.batteryLevel,
           lastSeenAt: receivedAt,
           status: nextStatus,
         },
@@ -74,15 +61,14 @@ export class SensorReadingsService {
     return reading;
   }
 
-  private computeStatus(
-    current: TrashBinStatus,
-    fillLevel: number,
-  ): TrashBinStatus {
-    // Don't override administrative states.
-    if (current === TrashBinStatus.maintenance || current === TrashBinStatus.inactive) {
-      return current;
+  private computeNextStatus(currentStatus: TrashBinStatus, fillLevel: number): TrashBinStatus {
+    if (
+      currentStatus === TrashBinStatus.maintenance ||
+      currentStatus === TrashBinStatus.inactive
+    ) {
+      return currentStatus;
     }
-    if (fillLevel >= 90) return TrashBinStatus.full;
+    if (fillLevel >= FILL_LEVEL_FULL_THRESHOLD) return TrashBinStatus.full;
     return TrashBinStatus.active;
   }
 }

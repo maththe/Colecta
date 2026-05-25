@@ -13,37 +13,37 @@ import {
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
-// fah
 
 @Controller('tasks')
 export class TasksController {
   constructor(private readonly service: TasksService) {}
 
   @Get()
-  list() {
-    return this.service.list();
+  findAll() {
+    return this.service.findAll();
   }
 
   @Get(':id')
-  get(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.service.get(id);
+  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.service.findOne(id);
   }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() body: CreateTaskDto) {
-    return this.service.create(body);
+  create(@Body() dto: CreateTaskDto) {
+    return this.service.create(dto);
   }
 
   @Patch(':id')
   update(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() body: UpdateTaskDto,
+    @Body() dto: UpdateTaskDto,
   ) {
-    return this.service.update(id, body);
+    return this.service.update(id, dto);
   }
 
   @Delete(':id')
+  @HttpCode(HttpStatus.OK)
   remove(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.service.remove(id);
   }

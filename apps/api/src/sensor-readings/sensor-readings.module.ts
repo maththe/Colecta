@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { SensorReadingsController } from './sensor-readings.controller';
 import { SensorReadingsService } from './sensor-readings.service';
+import { SensorReadingsController } from './sensor-readings.controller';
 
 @Module({
   controllers: [SensorReadingsController],

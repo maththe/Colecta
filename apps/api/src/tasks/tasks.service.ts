@@ -1,109 +1,82 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma, Task } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 
+type TaskWithBin = Prisma.TaskGetPayload<{
+  include: { trashBin: { select: { id: true; name: true; code: true } } };
+}>;
+
 const taskInclude = {
-  trashBin: {
-    select: { id: true, name: true, code: true },
-  },
+  trashBin: { select: { id: true, name: true, code: true } },
 } satisfies Prisma.TaskInclude;
 
 @Injectable()
 export class TasksService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list() {
+  async findAll(): Promise<TaskWithBin[]> {
     return this.prisma.task.findMany({
       include: taskInclude,
-      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+      orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }],
     });
   }
 
-  async get(id: string) {
+  async findOne(id: string): Promise<TaskWithBin> {
     const task = await this.prisma.task.findUnique({
       where: { id },
       include: taskInclude,
     });
-    if (!task) throw new NotFoundException(`Tarefa ${id} não encontrada`);
+    if (!task) throw new NotFoundException(`Task ${id} not found`);
     return task;
   }
 
-  async create(data: CreateTaskDto) {
-    const trashBinId = this.normalizeBinId(data.trashBinId);
-    if (trashBinId) await this.assertBinExists(trashBinId);
+  async create(dto: CreateTaskDto): Promise<TaskWithBin> {
+    if (dto.trashBinId) await this.assertTrashBinExists(dto.trashBinId);
 
-    return this.prisma.task.create({
-      data: {
-        title: data.title,
-        description: data.description ?? null,
-        status: data.status,
-        priority: data.priority,
-        trashBinId: trashBinId ?? null,
-        assigneeName: data.assigneeName ?? null,
-        dueDate: data.dueDate ? new Date(data.dueDate) : null,
-      },
-      include: taskInclude,
-    });
+    const data: Prisma.TaskCreateInput = {
+      title: dto.title,
+      description: dto.description ?? null,
+      status: dto.status,
+      priority: dto.priority,
+      assigneeName: dto.assigneeName ?? null,
+      dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+      trashBin: dto.trashBinId ? { connect: { id: dto.trashBinId } } : undefined,
+    };
+
+    return this.prisma.task.create({ data, include: taskInclude });
   }
 
-  async update(id: string, data: UpdateTaskDto) {
-    await this.get(id);
+  async update(id: string, dto: UpdateTaskDto): Promise<TaskWithBin> {
+    await this.findOne(id);
+    if (dto.trashBinId) await this.assertTrashBinExists(dto.trashBinId);
 
-    const trashBinId =
-      data.trashBinId === undefined
-        ? undefined
-        : this.normalizeBinId(data.trashBinId);
+    const data: Prisma.TaskUpdateInput = {};
+    if (dto.title !== undefined) data.title = dto.title;
+    if (dto.description !== undefined) data.description = dto.description ?? null;
+    if (dto.status !== undefined) data.status = dto.status;
+    if (dto.priority !== undefined) data.priority = dto.priority;
+    if (dto.assigneeName !== undefined) data.assigneeName = dto.assigneeName ?? null;
+    if (dto.dueDate !== undefined) data.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
+    if (dto.trashBinId !== undefined) {
+      data.trashBin = dto.trashBinId ? { connect: { id: dto.trashBinId } } : { disconnect: true };
+    }
 
-    if (trashBinId) await this.assertBinExists(trashBinId);
-
-    return this.prisma.task.update({
-      where: { id },
-      data: {
-        title: data.title,
-        description:
-          data.description === undefined ? undefined : data.description,
-        status: data.status,
-        priority: data.priority,
-        trashBinId:
-          data.trashBinId === undefined ? undefined : trashBinId ?? null,
-        assigneeName:
-          data.assigneeName === undefined ? undefined : data.assigneeName,
-        dueDate:
-          data.dueDate === undefined
-            ? undefined
-            : data.dueDate
-              ? new Date(data.dueDate)
-              : null,
-      },
-      include: taskInclude,
-    });
+    return this.prisma.task.update({ where: { id }, data, include: taskInclude });
   }
 
-  async remove(id: string) {
-    await this.get(id);
+  async remove(id: string): Promise<{ id: string }> {
+    await this.findOne(id);
     await this.prisma.task.delete({ where: { id } });
     return { id };
   }
 
-  private normalizeBinId(value: string | null | undefined): string | null {
-    if (value === undefined || value === null) return null;
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
-
-  private async assertBinExists(id: string): Promise<void> {
-    const bin = await this.prisma.trashBin.findUnique({
-      where: { id },
+  private async assertTrashBinExists(trashBinId: string): Promise<void> {
+    const exists = await this.prisma.trashBin.findUnique({
+      where: { id: trashBinId },
       select: { id: true },
     });
-    if (!bin) {
-      throw new BadRequestException(`Lixeira ${id} não encontrada`);
-    }
+    if (!exists) throw new BadRequestException(`TrashBin ${trashBinId} not found`);
   }
 }

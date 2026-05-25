@@ -19,30 +19,31 @@ export class TrashBinsController {
   constructor(private readonly service: TrashBinsService) {}
 
   @Get()
-  list() {
-    return this.service.list();
+  findAll() {
+    return this.service.findAll();
   }
 
   @Get(':id')
-  get(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.service.get(id);
+  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.service.findOne(id);
   }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() body: CreateTrashBinDto) {
-    return this.service.create(body);
+  create(@Body() dto: CreateTrashBinDto) {
+    return this.service.create(dto);
   }
 
   @Patch(':id')
   update(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() body: UpdateTrashBinDto,
+    @Body() dto: UpdateTrashBinDto,
   ) {
-    return this.service.update(id, body);
+    return this.service.update(id, dto);
   }
 
   @Delete(':id')
+  @HttpCode(HttpStatus.OK)
   remove(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.service.remove(id);
   }
