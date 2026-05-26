@@ -7,6 +7,7 @@ import {
   type TaskPriority,
   type TaskStatus,
   type TrashBin,
+  type User,
 } from '../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 interface Props {
   initial?: Task | null;
   bins: TrashBin[];
+  users: User[];
   submitting?: boolean;
   onCancel: () => void;
   onSubmit: (values: CreateTaskInput) => void | Promise<void>;
@@ -42,7 +44,7 @@ function toLocalInput(iso: string | null | undefined): string {
 const selectClass =
   'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50';
 
-export function TaskForm({ initial, bins, submitting, onCancel, onSubmit }: Props) {
+export function TaskForm({ initial, bins, users, submitting, onCancel, onSubmit }: Props) {
   const {
     register,
     handleSubmit,
@@ -134,7 +136,13 @@ export function TaskForm({ initial, bins, submitting, onCancel, onSubmit }: Prop
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="task-assignee">Responsável</Label>
-          <Input id="task-assignee" {...register('assigneeName')} />
+          <select id="task-assignee" className={selectClass} {...register('assigneeName')}>
+            {users.map((user) => (
+              <option key={user.id} value={user.name}>
+                {user.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="task-due">Data limite</Label>

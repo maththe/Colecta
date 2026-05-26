@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
-import type { CreateTaskInput, Task, TrashBin } from '../types';
+import type { CreateTaskInput, Task, TrashBin, User } from '../types';
 import { ErrorState, LoadingState, EmptyState } from '../components/States';
 import { TaskPriorityBadge, TaskStatusBadge } from '../components/StatusBadge';
 import { Modal } from '../components/Modal';
 import { TaskForm } from '../components/TaskForm';
 import { formatDateTime } from '../lib/format';
+import { useAuth } from '../contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -18,20 +19,24 @@ import {
 import { Plus } from 'lucide-react';
 
 export function TasksPage() {
+  const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [bins, setBins] = useState<TrashBin[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const canManageTasks = user?.role === 'ADMIN';
 
   async function load() {
     setError(null);
     try {
-      const [t, b] = await Promise.all([api.tasks.list(), api.trashBins.list()]);
+      const [t, b, u] = await Promise.all([api.tasks.list(), api.trashBins.list(), api.users.list()]);
       setTasks(t);
       setBins(b);
+      setUsers(u);
     } catch (err: unknown) {
       setError(err instanceof ApiError ? err.message : 'Falha ao carregar tarefas');
     }
@@ -42,12 +47,14 @@ export function TasksPage() {
   }, []);
 
   function openCreate() {
+    if (!canManageTasks) return;
     setEditing(null);
     setFormError(null);
     setModalOpen(true);
   }
 
   function openEdit(task: Task) {
+    if (!canManageTasks) return;
     setEditing(task);
     setFormError(null);
     setModalOpen(true);
@@ -59,6 +66,7 @@ export function TasksPage() {
   }
 
   async function handleSubmit(values: CreateTaskInput) {
+    if (!canManageTasks) return;
     setSubmitting(true);
     setFormError(null);
     try {
@@ -77,6 +85,7 @@ export function TasksPage() {
   }
 
   async function handleRemove(task: Task) {
+    if (!canManageTasks) return;
     if (!confirm(`Excluir a tarefa "${task.title}"?`)) return;
     try {
       await api.tasks.remove(task.id);
@@ -95,10 +104,12 @@ export function TasksPage() {
             Manutenção, coleta e ações operacionais
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-1 h-4 w-4" />
-          Nova tarefa
-        </Button>
+        {canManageTasks && (
+          <Button onClick={openCreate}>
+            <Plus className="mr-1 h-4 w-4" />
+            Nova tarefa
+          </Button>
+        )}
       </div>
 
       {error && <ErrorState message={error} />}
@@ -116,7 +127,7 @@ export function TasksPage() {
                 <TableHead>Lixeira</TableHead>
                 <TableHead>Responsável</TableHead>
                 <TableHead>Prazo</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                {canManageTasks && <TableHead className="text-right">Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -145,16 +156,18 @@ export function TasksPage() {
                   </TableCell>
                   <TableCell>{task.assigneeName ?? <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell className="text-sm">{formatDateTime(task.dueDate)}</TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => openEdit(task)}>
-                        Editar
-                      </Button>
-                      <Button variant="destructive" size="sm" onClick={() => handleRemove(task)}>
-                        Excluir
-                      </Button>
-                    </div>
-                  </TableCell>
+                  {canManageTasks && (
+                    <TableCell>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => openEdit(task)}>
+                          Editar
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleRemove(task)}>
+                          Excluir
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -162,24 +175,27 @@ export function TasksPage() {
         </div>
       )}
 
-      <Modal
-        open={modalOpen}
-        title={editing ? 'Editar tarefa' : 'Nova tarefa'}
-        onClose={closeModal}
-      >
-        {formError && (
-          <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-            {formError}
-          </div>
-        )}
-        <TaskForm
-          initial={editing}
-          bins={bins}
-          submitting={submitting}
-          onCancel={closeModal}
-          onSubmit={handleSubmit}
-        />
-      </Modal>
+      {canManageTasks && (
+        <Modal
+          open={modalOpen}
+          title={editing ? 'Editar tarefa' : 'Nova tarefa'}
+          onClose={closeModal}
+        >
+          {formError && (
+            <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {formError}
+            </div>
+          )}
+          <TaskForm
+            initial={editing}
+            bins={bins}
+            users={users}
+            submitting={submitting}
+            onCancel={closeModal}
+            onSubmit={handleSubmit}
+          />
+        </Modal>
+      )}
     </div>
   );
 }
