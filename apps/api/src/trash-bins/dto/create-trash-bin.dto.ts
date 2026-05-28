@@ -6,6 +6,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -28,11 +29,17 @@ export class CreateTrashBinDto {
   @MaxLength(500)
   locationDescription?: string;
 
-  @IsLatitude()
-  latitude!: number;
+  @IsOptional()
+  @IsUUID()
+  locationId?: string | null;
 
+  @IsOptional()
+  @IsLatitude()
+  latitude?: number;
+
+  @IsOptional()
   @IsLongitude()
-  longitude!: number;
+  longitude?: number;
 
   @IsInt()
   @Min(1)

@@ -11,6 +11,8 @@ services:
       - "5433:5432"
     volumes:
       - colecta_postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./apps/api/prisma/migrations:/colecta-prisma-migrations:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U colecta -d colecta"]
       interval: 5s

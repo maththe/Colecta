@@ -1,9 +1,10 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Map, CheckSquare, Trash2, LogOut } from 'lucide-react';
+import { LayoutDashboard, Map, CheckSquare, Trash2, LogOut, Moon, Sun } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface NavItem {
   to: string;
@@ -18,8 +19,8 @@ const sections: { title?: string; items: NavItem[] }[] = [
   {
     title: 'Operação',
     items: [
-      { to: '/bins', label: 'Lixeiras', Icon: Trash2 },
       { to: '/map', label: 'Mapa', Icon: Map },
+      { to: '/bins', label: 'Lixeiras', Icon: Trash2 },
       { to: '/tasks', label: 'Tarefas', Icon: CheckSquare },
     ],
   },
@@ -27,12 +28,15 @@ const sections: { title?: string; items: NavItem[] }[] = [
 
 export function MainLayout() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
     navigate('/login', { replace: true });
   };
+
+  const isDark = theme === 'dark';
 
   const initials = user?.name
     ?.split(' ')
@@ -94,6 +98,16 @@ export function MainLayout() {
               </div>
             </div>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleTheme}
+            className="w-full justify-start"
+            aria-label={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
+          >
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {isDark ? 'Modo claro' : 'Modo escuro'}
+          </Button>
           <Button variant="ghost" size="sm" onClick={handleLogout} className="w-full justify-start">
             <LogOut className="h-4 w-4" />
             Sair

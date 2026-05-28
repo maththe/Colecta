@@ -9,26 +9,32 @@ const FILL_LEVEL_FULL_THRESHOLD = 90;
 export class SensorReadingsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(): Promise<SensorReading[]> {
+  async findAll(tenantUuid: string): Promise<SensorReading[]> {
     return this.prisma.sensorReading.findMany({
+      where: { tenantUuid },
       orderBy: { receivedAt: 'desc' },
       take: 200,
     });
   }
 
-  async findByTrashBin(trashBinId: string): Promise<SensorReading[]> {
-    const bin = await this.prisma.trashBin.findUnique({ where: { id: trashBinId } });
+  async findByTrashBin(trashBinId: string, tenantUuid: string): Promise<SensorReading[]> {
+    const bin = await this.prisma.trashBin.findFirst({
+      where: { id: trashBinId, tenantUuid },
+      select: { id: true },
+    });
     if (!bin) throw new NotFoundException(`TrashBin ${trashBinId} not found`);
 
     return this.prisma.sensorReading.findMany({
-      where: { trashBinId },
+      where: { trashBinId, tenantUuid },
       orderBy: { receivedAt: 'desc' },
       take: 200,
     });
   }
 
-  async create(dto: CreateSensorReadingDto): Promise<SensorReading> {
-    const bin = await this.prisma.trashBin.findUnique({ where: { id: dto.trashBinId } });
+  async create(dto: CreateSensorReadingDto, tenantUuid: string): Promise<SensorReading> {
+    const bin = await this.prisma.trashBin.findFirst({
+      where: { id: dto.trashBinId, tenantUuid },
+    });
     if (!bin) throw new NotFoundException(`TrashBin ${dto.trashBinId} not found`);
 
     const receivedAt = dto.receivedAt ? new Date(dto.receivedAt) : new Date();
@@ -37,6 +43,7 @@ export class SensorReadingsService {
     const [reading] = await this.prisma.$transaction([
       this.prisma.sensorReading.create({
         data: {
+          tenantUuid,
           trashBinId: dto.trashBinId,
           fillLevel: dto.fillLevel,
           batteryLevel: dto.batteryLevel ?? null,

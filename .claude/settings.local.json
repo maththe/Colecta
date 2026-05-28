@@ -55,7 +55,13 @@
       "PowerShell(Get-CimInstance *)",
       "PowerShell($body = '{\"email\":\"teste@colecta.com\",\"name\":\"Teste\",\"senha\":\"123456\"}'; try { $r = Invoke-RestMethod -Uri \"http://localhost:3333/users\" -Method POST -Body $body -ContentType \"application/json\" -TimeoutSec 10 -ErrorAction Stop; Write-Output \"CADASTRO OK:\"; $r | ConvertTo-Json } catch { Write-Output \"CADASTRO ERRO: $\\($_.Exception.Message\\)\"; if \\($_.ErrorDetails.Message\\) { Write-Output $_.ErrorDetails.Message } })",
       "PowerShell($body = '{\"email\":\"teste@colecta.com\",\"senha\":\"123456\"}'; try { $r = Invoke-RestMethod -Uri \"http://localhost:3333/auth/login\" -Method POST -Body $body -ContentType \"application/json\" -TimeoutSec 10 -ErrorAction Stop; Write-Output \"LOGIN OK:\"; $r | ConvertTo-Json; $token = $r.access_token; Write-Output \"`n--- testando /users/me com o token ---\"; $me = Invoke-RestMethod -Uri \"http://localhost:3333/users/me\" -Method GET -Headers @{Authorization = \"Bearer $token\"} -TimeoutSec 10; $me | ConvertTo-Json } catch { Write-Output \"ERRO: $\\($_.Exception.Message\\)\"; if \\($_.ErrorDetails.Message\\) { Write-Output $_.ErrorDetails.Message } })",
-      "PowerShell(cd C:\\\\Users\\\\mathe\\\\Colecta; Write-Output \"--- diff de main.ts \\(arquivo que NAO toquei\\) ---\"; git diff --no-color apps/api/src/main.ts | Select-Object -First 30; Write-Output \"`n--- estatistica geral apps/api ---\"; git diff --stat apps/api | Select-Object -First 10; Write-Output \"`n--- contagem de arquivos modificados/adicionados ---\"; \\(git status --short | Measure-Object\\).Count)"
+      "PowerShell(cd C:\\\\Users\\\\mathe\\\\Colecta; Write-Output \"--- diff de main.ts \\(arquivo que NAO toquei\\) ---\"; git diff --no-color apps/api/src/main.ts | Select-Object -First 30; Write-Output \"`n--- estatistica geral apps/api ---\"; git diff --stat apps/api | Select-Object -First 10; Write-Output \"`n--- contagem de arquivos modificados/adicionados ---\"; \\(git status --short | Measure-Object\\).Count)",
+      "Bash(cmd *)",
+      "PowerShell(New-Item *)",
+      "PowerShell(Stop-Process *)",
+      "PowerShell($env:PGPASSWORD = 'colecta'; & docker exec -i $\\(docker ps --filter ancestor=postgres --format '{{.Names}}' | Select-Object -First 1\\) psql -U colecta -d colecta -c \"SELECT migration_name, finished_at, rolled_back_at, applied_steps_count FROM _prisma_migrations ORDER BY started_at;\" 2>&1)",
+      "PowerShell(docker exec colecta-postgres *)",
+      "Bash(echo \"exit=$?\")"
     ]
   }
 }

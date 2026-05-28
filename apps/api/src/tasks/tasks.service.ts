@@ -1,41 +1,53 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { Prisma, Task } from '@prisma/client';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
+import { Prisma, TaskStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 
 type TaskWithBin = Prisma.TaskGetPayload<{
-  include: { trashBin: { select: { id: true; name: true; code: true } } };
+  include: {
+    trashBin: { select: { id: true; name: true; code: true } };
+    location: { select: { id: true; name: true; latitude: true; longitude: true } };
+  };
 }>;
 
 const taskInclude = {
   trashBin: { select: { id: true, name: true, code: true } },
+  location: { select: { id: true, name: true, latitude: true, longitude: true } },
 } satisfies Prisma.TaskInclude;
 
 @Injectable()
 export class TasksService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(): Promise<TaskWithBin[]> {
+  async findAll(tenantUuid: string): Promise<TaskWithBin[]> {
     return this.prisma.task.findMany({
+      where: { tenantUuid },
       include: taskInclude,
       orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }],
     });
   }
 
-  async findOne(id: string): Promise<TaskWithBin> {
-    const task = await this.prisma.task.findUnique({
-      where: { id },
+  async findOne(id: string, tenantUuid: string): Promise<TaskWithBin> {
+    const task = await this.prisma.task.findFirst({
+      where: { id, tenantUuid },
       include: taskInclude,
     });
     if (!task) throw new NotFoundException(`Task ${id} not found`);
     return task;
   }
 
-  async create(dto: CreateTaskDto): Promise<TaskWithBin> {
-    if (dto.trashBinId) await this.assertTrashBinExists(dto.trashBinId);
+  async create(dto: CreateTaskDto, tenantUuid: string): Promise<TaskWithBin> {
+    if (dto.trashBinId) await this.assertTrashBinExists(dto.trashBinId, tenantUuid);
+    if (dto.locationId) await this.assertLocationExists(dto.locationId, tenantUuid);
 
     const data: Prisma.TaskCreateInput = {
+      tenantUuid,
       title: dto.title,
       description: dto.description ?? null,
       status: dto.status,
@@ -43,14 +55,23 @@ export class TasksService {
       assigneeName: dto.assigneeName ?? null,
       dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
       trashBin: dto.trashBinId ? { connect: { id: dto.trashBinId } } : undefined,
+      location: dto.locationId ? { connect: { id: dto.locationId } } : undefined,
     };
 
     return this.prisma.task.create({ data, include: taskInclude });
   }
 
-  async update(id: string, dto: UpdateTaskDto): Promise<TaskWithBin> {
-    await this.findOne(id);
-    if (dto.trashBinId) await this.assertTrashBinExists(dto.trashBinId);
+  async update(
+    id: string,
+    dto: UpdateTaskDto,
+    tenantUuid: string,
+    actorRole?: UserRole,
+  ): Promise<TaskWithBin> {
+    const current = await this.findOne(id, tenantUuid);
+    this.assertCanUpdate(actorRole, current.status, dto);
+
+    if (dto.trashBinId) await this.assertTrashBinExists(dto.trashBinId, tenantUuid);
+    if (dto.locationId) await this.assertLocationExists(dto.locationId, tenantUuid);
 
     const data: Prisma.TaskUpdateInput = {};
     if (dto.title !== undefined) data.title = dto.title;
@@ -62,21 +83,59 @@ export class TasksService {
     if (dto.trashBinId !== undefined) {
       data.trashBin = dto.trashBinId ? { connect: { id: dto.trashBinId } } : { disconnect: true };
     }
+    if (dto.locationId !== undefined) {
+      data.location = dto.locationId ? { connect: { id: dto.locationId } } : { disconnect: true };
+    }
 
     return this.prisma.task.update({ where: { id }, data, include: taskInclude });
   }
 
-  async remove(id: string): Promise<{ id: string }> {
-    await this.findOne(id);
+  async remove(id: string, tenantUuid: string): Promise<{ id: string }> {
+    await this.findOne(id, tenantUuid);
     await this.prisma.task.delete({ where: { id } });
     return { id };
   }
 
-  private async assertTrashBinExists(trashBinId: string): Promise<void> {
-    const exists = await this.prisma.trashBin.findUnique({
-      where: { id: trashBinId },
+  private async assertTrashBinExists(trashBinId: string, tenantUuid: string): Promise<void> {
+    const exists = await this.prisma.trashBin.findFirst({
+      where: { id: trashBinId, tenantUuid },
       select: { id: true },
     });
     if (!exists) throw new BadRequestException(`TrashBin ${trashBinId} not found`);
+  }
+
+  private async assertLocationExists(locationId: string, tenantUuid: string): Promise<void> {
+    const exists = await this.prisma.location.findFirst({
+      where: { id: locationId, tenantUuid },
+      select: { id: true },
+    });
+    if (!exists) throw new BadRequestException(`Location ${locationId} not found`);
+  }
+
+  private assertCanUpdate(
+    actorRole: UserRole | undefined,
+    currentStatus: TaskStatus,
+    dto: UpdateTaskDto,
+  ): void {
+    if (actorRole === UserRole.ADMIN) return;
+
+    if (actorRole !== UserRole.FUNCIONARIO) {
+      throw new ForbiddenException('Você não tem permissão para atualizar tarefas.');
+    }
+
+    const changedFields = Object.entries(dto).filter(([, value]) => value !== undefined);
+    if (changedFields.length !== 1 || dto.status === undefined) {
+      throw new ForbiddenException('Funcionários só podem alterar o status da tarefa.');
+    }
+
+    if (dto.status === currentStatus) return;
+
+    const canStart =
+      currentStatus === TaskStatus.pending && dto.status === TaskStatus.in_progress;
+    const canFinish = currentStatus === TaskStatus.in_progress && dto.status === TaskStatus.done;
+
+    if (!canStart && !canFinish) {
+      throw new BadRequestException('Transição de status não permitida para funcionário.');
+    }
   }
 }

@@ -1,6 +1,8 @@
 import type {
+  CreateLocationInput,
   CreateTaskInput,
   CreateTrashBinInput,
+  Location,
   LoginInput,
   LoginResponse,
   SensorReading,
@@ -91,6 +93,19 @@ export const api = {
       }),
     remove: (id: string) =>
       request<{ id: string }>(`/trash-bins/${id}`, { method: 'DELETE' }),
+  },
+  locations: {
+    list: () => request<Location[]>('/locations'),
+    get: (id: string) => request<Location>(`/locations/${id}`),
+    create: (data: CreateLocationInput) =>
+      request<Location>('/locations', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<CreateLocationInput>) =>
+      request<Location>(`/locations/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    remove: (id: string) =>
+      request<{ id: string }>(`/locations/${id}`, { method: 'DELETE' }),
   },
   tasks: {
     list: () => request<Task[]>('/tasks'),

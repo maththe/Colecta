@@ -29,10 +29,22 @@ export type TaskStatus = 'pending' | 'in_progress' | 'done' | 'cancelled';
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 
+export interface Location {
+  id: string;
+  name: string;
+  description: string | null;
+  latitude: number;
+  longitude: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TrashBin {
   id: string;
   name: string;
   code: string;
+  locationId: string;
+  location: Location;
   locationDescription: string | null;
   latitude: number;
   longitude: number;
@@ -48,10 +60,18 @@ export interface TrashBin {
 export interface CreateTrashBinInput {
   name: string;
   code: string;
+  locationId?: string | null;
   locationDescription?: string;
+  latitude?: number;
+  longitude?: number;
+  capacityLiters: number;
+}
+
+export interface CreateLocationInput {
+  name: string;
+  description?: string | null;
   latitude: number;
   longitude: number;
-  capacityLiters: number;
 }
 
 export interface SensorReading {
@@ -75,6 +95,8 @@ export interface Task {
   priority: TaskPriority;
   trashBinId: string | null;
   trashBin: { id: string; name: string; code: string } | null;
+  locationId: string | null;
+  location: { id: string; name: string; latitude: number; longitude: number } | null;
   assigneeName: string | null;
   dueDate: string | null;
   createdAt: string;
@@ -87,6 +109,7 @@ export interface CreateTaskInput {
   status?: TaskStatus;
   priority?: TaskPriority;
   trashBinId?: string | null;
+  locationId?: string | null;
   assigneeName?: string | null;
   dueDate?: string | null;
 }

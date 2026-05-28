@@ -49,29 +49,51 @@ model User {
 }
 
 model TrashBin {
-  id                  String         @id @default(uuid()) @db.Uuid
-  name                String
-  code                String         @unique
-  locationDescription String?
-  latitude            Float
-  longitude           Float
-  capacityLiters      Int
-  status              TrashBinStatus @default(active)
-  fillLevel           Int?
-  batteryLevel        Int?
-  lastSeenAt          DateTime?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  id             String         @id @default(uuid()) @db.Uuid
+  tenantUuid     String
+  name           String
+  code           String
+  locationId     String         @db.Uuid
+  location       Location       @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  capacityLiters Int
+  status         TrashBinStatus @default(active)
+  fillLevel      Int?
+  batteryLevel   Int?
+  lastSeenAt     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   sensorReadings SensorReading[]
   tasks          Task[]
 
+  @@unique([tenantUuid, code])
+  @@index([tenantUuid])
+  @@index([locationId])
   @@index([status])
   @@map("trash_bins")
 }
 
+model Location {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantUuid  String
+  name        String
+  description String?
+  latitude    Float
+  longitude   Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  trashBins TrashBin[]
+  tasks     Task[]
+
+  @@index([tenantUuid])
+  @@index([tenantUuid, name])
+  @@map("locations")
+}
+
 model SensorReading {
   id           String   @id @default(uuid()) @db.Uuid
+  tenantUuid   String
   trashBinId   String   @db.Uuid
   trashBin     TrashBin @relation(fields: [trashBinId], references: [id], onDelete: Cascade)
   fillLevel    Int
@@ -83,24 +105,30 @@ model SensorReading {
   receivedAt   DateTime @default(now())
   createdAt    DateTime @default(now())
 
+  @@index([tenantUuid, receivedAt])
   @@index([trashBinId, receivedAt])
   @@map("sensor_readings")
 }
 
 model Task {
   id           String       @id @default(uuid()) @db.Uuid
+  tenantUuid   String
   title        String
   description  String?
   status       TaskStatus   @default(pending)
   priority     TaskPriority @default(medium)
   trashBinId   String?      @db.Uuid
   trashBin     TrashBin?    @relation(fields: [trashBinId], references: [id], onDelete: SetNull)
+  locationId   String?      @db.Uuid
+  location     Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
   assigneeName String?
   dueDate      DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
+  @@index([tenantUuid])
   @@index([status])
   @@index([trashBinId])
+  @@index([locationId])
   @@map("tasks")
 }

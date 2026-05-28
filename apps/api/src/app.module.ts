@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { TrashBinsModule } from './trash-bins/trash-bins.module';
+import { LocationsModule } from './locations/locations.module';
 import { SensorReadingsModule } from './sensor-readings/sensor-readings.module';
 import { TasksModule } from './tasks/tasks.module';
 import { HealthModule } from './health/health.module';
@@ -17,6 +18,7 @@ import { RolesGuard } from './auth/roles.guard';
     PrismaModule,
     AuthModule,
     UsersModule,
+    LocationsModule,
     TrashBinsModule,
     SensorReadingsModule,
     TasksModule,

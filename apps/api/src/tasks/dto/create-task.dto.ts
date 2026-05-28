@@ -33,6 +33,10 @@ export class CreateTaskDto {
   trashBinId?: string | null;
 
   @IsOptional()
+  @IsUUID()
+  locationId?: string | null;
+
+  @IsOptional()
   @IsString()
   @MaxLength(120)
   assigneeName?: string | null;

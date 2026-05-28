@@ -11,23 +11,15 @@ import {
   Post,
   Req,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
 import type { Request } from 'express';
-import { TasksService } from './tasks.service';
-import { CreateTaskDto } from './dto/create-task.dto';
-import { UpdateTaskDto } from './dto/update-task.dto';
 import { getTenantUuid } from '../common/tenant.util';
-import { Roles } from '../auth/roles.decorator';
+import { CreateLocationDto } from './dto/create-location.dto';
+import { UpdateLocationDto } from './dto/update-location.dto';
+import { LocationsService } from './locations.service';
 
-type AuthenticatedRequest = Request & {
-  user?: {
-    role?: UserRole;
-  };
-};
-
-@Controller('tasks')
-export class TasksController {
-  constructor(private readonly service: TasksService) {}
+@Controller('locations')
+export class LocationsController {
+  constructor(private readonly service: LocationsService) {}
 
   @Get()
   findAll(@Req() req: Request) {
@@ -40,24 +32,21 @@ export class TasksController {
   }
 
   @Post()
-  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: CreateTaskDto, @Req() req: Request) {
+  create(@Body() dto: CreateLocationDto, @Req() req: Request) {
     return this.service.create(dto, getTenantUuid(req));
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.FUNCIONARIO)
   update(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: UpdateTaskDto,
-    @Req() req: AuthenticatedRequest,
+    @Body() dto: UpdateLocationDto,
+    @Req() req: Request,
   ) {
-    return this.service.update(id, dto, getTenantUuid(req), req.user?.role);
+    return this.service.update(id, dto, getTenantUuid(req));
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   remove(@Param('id', new ParseUUIDPipe()) id: string, @Req() req: Request) {
     return this.service.remove(id, getTenantUuid(req));

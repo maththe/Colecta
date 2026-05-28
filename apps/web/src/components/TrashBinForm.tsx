@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 
 interface Props {
   initial?: TrashBin | null;
+  defaults?: Partial<CreateTrashBinInput>;
   submitting?: boolean;
   onCancel: () => void;
   onSubmit: (values: CreateTrashBinInput) => void | Promise<void>;
@@ -20,19 +21,25 @@ type FormValues = {
   capacityLiters: string;
 };
 
-export function TrashBinForm({ initial, submitting, onCancel, onSubmit }: Props) {
+function numberToInput(value: number | undefined): string {
+  return value === undefined ? '' : String(value);
+}
+
+export function TrashBinForm({ initial, defaults, submitting, onCancel, onSubmit }: Props) {
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<FormValues>({
     defaultValues: {
-      name: initial?.name ?? '',
-      code: initial?.code ?? '',
-      locationDescription: initial?.locationDescription ?? '',
-      latitude: initial ? String(initial.latitude) : '',
-      longitude: initial ? String(initial.longitude) : '',
-      capacityLiters: initial ? String(initial.capacityLiters) : '100',
+      name: initial?.name ?? defaults?.name ?? '',
+      code: initial?.code ?? defaults?.code ?? '',
+      locationDescription: initial?.locationDescription ?? defaults?.locationDescription ?? '',
+      latitude: initial ? String(initial.latitude) : numberToInput(defaults?.latitude),
+      longitude: initial ? String(initial.longitude) : numberToInput(defaults?.longitude),
+      capacityLiters: initial
+        ? String(initial.capacityLiters)
+        : String(defaults?.capacityLiters ?? 100),
     },
   });
 
