@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   BatteryLow,
@@ -17,12 +18,13 @@ import { TrashBinStatusBadge } from '../components/StatusBadge';
 import { FillBar } from '../components/FillBar';
 import { BatteryIndicator } from '../components/BatteryIndicator';
 import { Modal } from '../components/Modal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { TrashBinForm } from '../components/TrashBinForm';
 import { formatCoord, formatRelativeTime } from '../lib/format';
 import { useAuth } from '../contexts/AuthContext';
+import { StatCard } from '../components/StatCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -44,51 +46,13 @@ const STATUS_PRIORITY: Record<TrashBinStatus, number> = {
 
 type StatusFilter = 'all' | TrashBinStatus;
 
-// Compact KPI tile with a tinted icon chip, matching the dashboard style.
-function StatCard({
-  label,
-  value,
-  hint,
-  Icon,
-  tone,
-}: {
-  label: string;
-  value: number | string;
-  hint?: string;
-  Icon: typeof Trash2;
-  tone: 'primary' | 'destructive' | 'warning' | 'info';
-}) {
-  const toneClass = {
-    primary: 'bg-primary/10 text-primary',
-    destructive: 'bg-destructive/10 text-destructive',
-    warning: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-    info: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
-  }[tone];
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <CardDescription>{label}</CardDescription>
-          <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg', toneClass)}>
-            <Icon className="h-4 w-4" />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <p className="text-3xl font-bold tabular-nums">{value}</p>
-        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
 function SkeletonBlock({ className }: { className?: string }) {
   return <div className={cn('animate-pulse rounded-lg bg-muted', className)} />;
 }
 
 export function BinsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [bins, setBins] = useState<TrashBin[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -98,6 +62,9 @@ export function BinsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [pendingDelete, setPendingDelete] = useState<TrashBin | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const canManageBins = user?.role === 'ADMIN';
 
   async function load() {
@@ -155,14 +122,29 @@ export function BinsPage() {
     }
   }
 
-  async function handleRemove(bin: TrashBin) {
+  function requestRemove(bin: TrashBin) {
     if (!canManageBins) return;
-    if (!confirm(`Excluir a lixeira "${bin.name}"?`)) return;
+    setDeleteError(null);
+    setPendingDelete(bin);
+  }
+
+  function cancelRemove() {
+    setPendingDelete(null);
+    setDeleteError(null);
+  }
+
+  async function confirmRemove() {
+    if (!pendingDelete || !canManageBins) return;
+    setDeleting(true);
+    setDeleteError(null);
     try {
-      await api.trashBins.remove(bin.id);
+      await api.trashBins.remove(pendingDelete.id);
+      setPendingDelete(null);
       await load();
     } catch (err: unknown) {
-      alert(err instanceof ApiError ? err.message : 'Erro ao excluir');
+      setDeleteError(err instanceof ApiError ? err.message : 'Erro ao excluir');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -335,7 +317,7 @@ export function BinsPage() {
                         <TableHead>Bateria</TableHead>
                         <TableHead>Última comunicação</TableHead>
                         <TableHead>Localização</TableHead>
-                        {canManageBins && <TableHead className="text-right">Ações</TableHead>}
+                        <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -370,18 +352,28 @@ export function BinsPage() {
                           <TableCell className="font-mono text-xs">
                             {formatCoord(bin.latitude)}, {formatCoord(bin.longitude)}
                           </TableCell>
-                          {canManageBins && (
-                            <TableCell>
-                              <div className="flex justify-end gap-2">
-                                <Button variant="outline" size="sm" onClick={() => openEdit(bin)}>
-                                  Editar
-                                </Button>
-                                <Button variant="destructive" size="sm" onClick={() => handleRemove(bin)}>
-                                  Excluir
-                                </Button>
-                              </div>
-                            </TableCell>
-                          )}
+                          <TableCell>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => navigate(`/map?bin=${bin.id}`)}
+                              >
+                                <MapPin className="h-4 w-4" />
+                                Ver no mapa
+                              </Button>
+                              {canManageBins && (
+                                <>
+                                  <Button variant="outline" size="sm" onClick={() => openEdit(bin)}>
+                                    Editar
+                                  </Button>
+                                  <Button variant="destructive" size="sm" onClick={() => requestRemove(bin)}>
+                                    Excluir
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -412,6 +404,26 @@ export function BinsPage() {
           />
         </Modal>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Excluir lixeira"
+        description={
+          pendingDelete && (
+            <>
+              A lixeira <strong>{pendingDelete.name}</strong> será removida. A posição vinculada
+              também sai do mapa, a menos que outra lixeira a utilize. Esta ação não pode ser
+              desfeita.
+            </>
+          )
+        }
+        confirmLabel="Excluir"
+        destructive
+        loading={deleting}
+        error={deleteError}
+        onConfirm={() => void confirmRemove()}
+        onCancel={cancelRemove}
+      />
     </div>
   );
 }

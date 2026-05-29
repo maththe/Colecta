@@ -83,8 +83,20 @@ export class TrashBinsService {
   }
 
   async remove(id: string, tenantUuid: string): Promise<{ id: string }> {
-    await this.findOne(id, tenantUuid);
-    await this.prisma.trashBin.delete({ where: { id } });
+    const bin = await this.findOneRaw(id, tenantUuid);
+
+    // Apaga a lixeira e, se a posição não for usada por nenhuma outra lixeira,
+    // remove a posição também — assim ela não fica como marcador órfão no mapa.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.trashBin.delete({ where: { id } });
+      const remaining = await tx.trashBin.count({
+        where: { locationId: bin.locationId },
+      });
+      if (remaining === 0) {
+        await tx.location.delete({ where: { id: bin.locationId } });
+      }
+    });
+
     return { id };
   }
 

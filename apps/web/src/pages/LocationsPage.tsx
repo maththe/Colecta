@@ -5,6 +5,7 @@ import { MapPin, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
 import { ErrorState, LoadingState, EmptyState } from '../components/States';
 import { Modal } from '../components/Modal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { LocationForm } from '../components/LocationForm';
 import { TrashBinForm } from '../components/TrashBinForm';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +20,11 @@ type DraftPlacement = {
   longitude: number;
   mode: CreateMode;
 };
+
+// Item marcado para exclusão, aguardando confirmação no diálogo.
+type PendingDelete =
+  | { kind: 'location'; item: Location }
+  | { kind: 'bin'; item: TrashBin };
 
 const DEFAULT_CENTER: [number, number] = [-23.5874, -46.6576];
 
@@ -154,6 +160,9 @@ export function LocationsPage() {
   const [draftPlacement, setDraftPlacement] = useState<DraftPlacement | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const canCreate = user?.role === 'ADMIN';
 
   async function loadData() {
@@ -235,6 +244,36 @@ export function LocationsPage() {
     }
   }
 
+  function requestDelete(target: PendingDelete) {
+    if (!canCreate) return;
+    setDeleteError(null);
+    setPendingDelete(target);
+  }
+
+  function cancelDelete() {
+    setPendingDelete(null);
+    setDeleteError(null);
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete || !canCreate) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      if (pendingDelete.kind === 'location') {
+        await api.locations.remove(pendingDelete.item.id);
+      } else {
+        await api.trashBins.remove(pendingDelete.item.id);
+      }
+      setPendingDelete(null);
+      await loadData();
+    } catch (err: unknown) {
+      setDeleteError(err instanceof ApiError ? err.message : 'Erro ao excluir');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function handleTrashBinSubmit(values: CreateTrashBinInput) {
     if (!draftPlacement || !canCreate) return;
     setSubmitting(true);
@@ -310,7 +349,8 @@ export function LocationsPage() {
             </div>
 
             <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
-              <div className="border-b border-border px-4 py-3">
+              {mode === 'location' && (
+              <div className="px-4 py-3">
                 <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Posições
@@ -339,12 +379,25 @@ export function LocationsPage() {
                             {formatCoord(location.latitude)}, {formatCoord(location.longitude)}
                           </p>
                         </div>
+                        {canCreate && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => requestDelete({ kind: 'location', item: location })}
+                            aria-label={`Excluir posição ${location.name}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
               </div>
+              )}
 
+              {mode === 'trash-bin' && (
               <div className="px-4 py-3">
                 <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -374,11 +427,23 @@ export function LocationsPage() {
                             {formatCoord(bin.latitude)}, {formatCoord(bin.longitude)}
                           </p>
                         </div>
+                        {canCreate && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => requestDelete({ kind: 'bin', item: bin })}
+                            aria-label={`Excluir lixeira ${bin.name}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
               </div>
+              )}
             </div>
           </aside>
         </div>
@@ -417,6 +482,32 @@ export function LocationsPage() {
           )}
         </Modal>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={pendingDelete?.kind === 'bin' ? 'Excluir lixeira' : 'Excluir posição'}
+        description={
+          pendingDelete &&
+          (pendingDelete.kind === 'bin' ? (
+            <>
+              A lixeira <strong>{pendingDelete.item.name}</strong> será removida. A posição vinculada
+              também sai do mapa, a menos que outra lixeira a utilize. Esta ação não pode ser
+              desfeita.
+            </>
+          ) : (
+            <>
+              A posição <strong>{pendingDelete.item.name}</strong> será removida do mapa. Esta ação
+              não pode ser desfeita.
+            </>
+          ))
+        }
+        confirmLabel="Excluir"
+        destructive
+        loading={deleting}
+        error={deleteError}
+        onConfirm={() => void confirmDelete()}
+        onCancel={cancelDelete}
+      />
     </div>
   );
 }
