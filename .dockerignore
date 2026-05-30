@@ -1,0 +1,24 @@
+# Dependências e artefatos de build (reconstruídos dentro da imagem)
+**/node_modules
+**/dist
+**/build
+**/.vite
+**/.turbo
+**/.cache
+**/coverage
+**/.pnpm-store
+
+# Segredos e ambiente local
+**/.env
+**/.env.*
+!**/.env.example
+
+# Git / docs / docker
+.git
+.gitignore
+.gitattributes
+**/*.log
+**/.DS_Store
+docker-compose*.yml
+README.md
+**/README.md

@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = "postgresql://colecta:colecta@localhost:5433/colecta?schema=public"
+  url      = env("DATABASE_URL")
 }
 
 enum TrashBinStatus {

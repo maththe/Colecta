@@ -19,5 +19,38 @@ services:
       timeout: 5s
       retries: 10
 
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: colecta-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Dentro da rede do compose o Postgres responde na porta interna 5432
+      DATABASE_URL: postgresql://colecta:colecta@postgres:5432/colecta?schema=public
+      PORT: "3333"
+      NODE_ENV: production
+      # ATENÇÃO: defina um JWT_SECRET forte em produção (.env ou variável de ambiente)
+      JWT_SECRET: ${JWT_SECRET:-troque_este_segredo_em_producao}
+    ports:
+      - "3333:3333"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # URL da API embutida no bundle em build-time
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3333}
+    container_name: colecta-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
 volumes:
   colecta_postgres_data:

@@ -62,7 +62,12 @@
       "PowerShell($env:PGPASSWORD = 'colecta'; & docker exec -i $\\(docker ps --filter ancestor=postgres --format '{{.Names}}' | Select-Object -First 1\\) psql -U colecta -d colecta -c \"SELECT migration_name, finished_at, rolled_back_at, applied_steps_count FROM _prisma_migrations ORDER BY started_at;\" 2>&1)",
       "PowerShell(docker exec colecta-postgres *)",
       "Bash(echo \"exit=$?\")",
-      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\([k for k in d.get\\('exports',{}\\) if 'alert' in k.lower\\(\\)]\\)\")"
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\([k for k in d.get\\('exports',{}\\) if 'alert' in k.lower\\(\\)]\\)\")",
+      "Bash(DOCKER_BUILDKIT=1 docker build -f apps/web/Dockerfile --build-arg VITE_API_URL=http://localhost:3333 -t colecta-web:test .)",
+      "Bash(DOCKER_BUILDKIT=1 docker build -f apps/api/Dockerfile -t colecta-api:test .)",
+      "Bash(docker run *)",
+      "Bash(docker stop *)",
+      "Bash(docker rmi *)"
     ]
   }
 }
