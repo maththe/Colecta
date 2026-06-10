@@ -71,7 +71,9 @@
       "PowerShell(Get-ChildItem apps\\\\web -Recurse -Directory | Where-Object { $_.FullName -notmatch 'node_modules|\\\\.next' } | Select-Object FullName)",
       "PowerShell($sql = 'SELECT t.code, t.name, l.name AS location FROM trash_bins t JOIN locations l ON l.id=t.\"locationId\" ORDER BY t.code;'; docker exec colecta-postgres psql -U colecta -d colecta -c $sql)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\mathe\\\\Projetos\\\\Colecta\\\\apps\\\\api\\\\src\" -Directory)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Read(//c/Users/mathe/.claude/plans//**)",
+      "Bash(mkdir -p /c/Users/mathe/.claude/plans/)"
     ]
   }
 }

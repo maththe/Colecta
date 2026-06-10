@@ -99,6 +99,8 @@ export interface Task {
   location: { id: string; name: string; latitude: number; longitude: number } | null;
   assigneeName: string | null;
   dueDate: string | null;
+  startedAt: string | null;
+  startedBy: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
 }

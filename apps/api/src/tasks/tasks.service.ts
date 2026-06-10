@@ -21,12 +21,14 @@ type TaskWithBin = Prisma.TaskGetPayload<{
   include: {
     trashBin: { select: { id: true; name: true; code: true } };
     location: { select: { id: true; name: true; latitude: true; longitude: true } };
+    startedBy: { select: { id: true; name: true } };
   };
 }>;
 
 const taskInclude = {
   trashBin: { select: { id: true, name: true, code: true } },
   location: { select: { id: true, name: true, latitude: true, longitude: true } },
+  startedBy: { select: { id: true, name: true } },
 } satisfies Prisma.TaskInclude;
 
 @Injectable()
@@ -74,6 +76,7 @@ export class TasksService {
     dto: UpdateTaskDto,
     tenantUuid: string,
     actorRole?: UserRole,
+    actorId?: string,
   ): Promise<TaskWithBin> {
     const current = await this.findOne(id, tenantUuid);
     this.assertCanUpdate(actorRole, current.status, dto);
@@ -93,6 +96,13 @@ export class TasksService {
     }
     if (dto.locationId !== undefined) {
       data.location = dto.locationId ? { connect: { id: dto.locationId } } : { disconnect: true };
+    }
+
+    const isStarting =
+      dto.status === TaskStatus.in_progress && current.status === TaskStatus.pending;
+    if (isStarting) {
+      data.startedAt = new Date();
+      data.startedBy = actorId ? { connect: { id: actorId } } : { disconnect: true };
     }
 
     return this.prisma.task.update({ where: { id }, data, include: taskInclude });

@@ -9,6 +9,8 @@ interface ConfirmDialogProps {
   description?: ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
+  /** Texto exibido no botão de confirmação enquanto loading=true. */
+  loadingLabel?: string;
   /** Usa o estilo destrutivo (vermelho) no botão de confirmação. */
   destructive?: boolean;
   loading?: boolean;
@@ -26,6 +28,7 @@ export function ConfirmDialog({
   description,
   confirmLabel = 'Confirmar',
   cancelLabel = 'Cancelar',
+  loadingLabel = 'Excluindo...',
   destructive = false,
   loading = false,
   error,
@@ -79,7 +82,7 @@ export function ConfirmDialog({
               onClick={onConfirm}
               disabled={loading}
             >
-              {loading ? 'Excluindo...' : confirmLabel}
+              {loading ? loadingLabel : confirmLabel}
             </Button>
           </div>
         </AlertDialog.Popup>

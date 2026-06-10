@@ -16,6 +16,8 @@ import { TaskPriorityBadge, TaskStatusBadge } from './StatusBadge';
 import { formatDateTime } from '../lib/format';
 import { taskMapHref } from '../lib/task';
 import { Modal } from './Modal';
+import { ConfirmDialog } from './ConfirmDialog';
+import { ApiError } from '../lib/api';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -75,6 +77,7 @@ const selectClass =
   'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50';
 
 type TaskStatusChangeHandler = (task: Task, status: TaskStatus) => Promise<Task>;
+type TaskStatusRequestHandler = (task: Task, status: TaskStatus) => void;
 
 // Ações de gestão disponíveis apenas na visão de admin (criar/editar/excluir).
 interface AdminActions {
@@ -170,13 +173,13 @@ function TaskCard({
   updating,
   admin,
   onOpen,
-  onStatusChange,
+  onRequestStatusChange,
 }: {
   task: Task;
   updating: boolean;
   admin: AdminActions;
   onOpen: (task: Task) => void;
-  onStatusChange: TaskStatusChangeHandler;
+  onRequestStatusChange: TaskStatusRequestHandler;
 }) {
   const overdue = isOverdue(task);
   const action = getNextStatusAction(task);
@@ -262,7 +265,7 @@ function TaskCard({
               size="sm"
               variant={action.status === 'done' ? 'default' : 'outline'}
               disabled={updating}
-              onClick={() => onStatusChange(task, action.status)}
+              onClick={() => onRequestStatusChange(task, action.status)}
             >
               {action.status === 'done' ? (
                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -292,13 +295,13 @@ function TaskDetailsModal({
   updating,
   admin,
   onClose,
-  onStatusChange,
+  onRequestStatusChange,
 }: {
   task: Task | null;
   updating: boolean;
   admin: AdminActions;
   onClose: () => void;
-  onStatusChange: TaskStatusChangeHandler;
+  onRequestStatusChange: TaskStatusRequestHandler;
 }) {
   const navigate = useNavigate();
   const overdue = task ? isOverdue(task) : false;
@@ -354,6 +357,12 @@ function TaskDetailsModal({
             </DetailRow>
 
             <DetailRow label="Criada em">{formatDateTime(task.createdAt)}</DetailRow>
+
+            {task.startedAt && (
+              <DetailRow label="Iniciada em">{formatDateTime(task.startedAt)}</DetailRow>
+            )}
+
+            {task.startedBy && <DetailRow label="Iniciada por">{task.startedBy.name}</DetailRow>}
           </dl>
 
           {(() => {
@@ -389,7 +398,7 @@ function TaskDetailsModal({
                     type="button"
                     variant={action.status === 'done' ? 'default' : 'outline'}
                     disabled={updating}
-                    onClick={() => onStatusChange(task, action.status)}
+                    onClick={() => onRequestStatusChange(task, action.status)}
                   >
                     {action.status === 'done' ? (
                       <CheckCircle2 className="h-4 w-4" />
@@ -428,6 +437,10 @@ export function TasksBoard({
   };
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ task: Task; status: TaskStatus } | null>(
+    null,
+  );
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
@@ -481,6 +494,15 @@ export function TasksBoard({
     dateFilter !== 'all' ||
     assigneeFilter !== ALL_ASSIGNEES;
 
+  function describeStatusError(err: unknown): string {
+    if (err instanceof ApiError) {
+      if (err.status === 403) return 'Você não tem permissão para alterar esta tarefa.';
+      if (err.status === 400) return err.message || 'Transição inválida.';
+      if (err.message) return err.message;
+    }
+    return 'Não foi possível atualizar a tarefa. Tente novamente.';
+  }
+
   async function handleStatusChange(task: Task, status: TaskStatus): Promise<Task> {
     setUpdatingTaskId(task.id);
     setActionError(null);
@@ -488,17 +510,69 @@ export function TasksBoard({
       const updated = await onStatusChange(task, status);
       setSelected((current) => (current?.id === task.id ? updated : current));
       return updated;
-    } catch {
-      setActionError('Nao foi possivel atualizar o status da tarefa.');
-      return task;
+    } catch (err) {
+      setActionError(describeStatusError(err));
+      throw err;
     } finally {
       setUpdatingTaskId(null);
     }
   }
 
+  function handleRequestStatusChange(task: Task, status: TaskStatus) {
+    setConfirmError(null);
+    setPendingAction({ task, status });
+  }
+
+  async function handleConfirmStatusChange() {
+    if (!pendingAction) return;
+    setConfirmError(null);
+    try {
+      await handleStatusChange(pendingAction.task, pendingAction.status);
+      setPendingAction(null);
+    } catch (err) {
+      setConfirmError(describeStatusError(err));
+    }
+  }
+
+  function handleCancelStatusChange() {
+    setPendingAction(null);
+    setConfirmError(null);
+  }
+
+  const pendingIsStart = pendingAction?.status === 'in_progress';
+  const confirmTitle = pendingIsStart ? 'Iniciar tarefa' : 'Concluir tarefa';
+  const confirmDescription = pendingIsStart
+    ? 'Sua identificação será registrada como responsável pela execução desta tarefa.'
+    : 'Marcar esta tarefa como concluída?';
+  const confirmLabel = pendingIsStart ? 'Iniciar' : 'Concluir';
+  const confirmLoading = !!pendingAction && updatingTaskId === pendingAction.task.id;
+
   return (
     <>
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 lg:flex-row lg:items-center lg:gap-6">
+      <div className="rounded-xl border border-border bg-card p-3">
+        <div className="mb-3 flex flex-col gap-1.5 sm:w-56">
+          <label
+            htmlFor="task-board-assignee-filter"
+            className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+          >
+            Responsável
+          </label>
+          <select
+            id="task-board-assignee-filter"
+            className={selectClass}
+            value={assigneeFilter}
+            onChange={(event) => setAssigneeFilter(event.target.value)}
+          >
+            <option value={ALL_ASSIGNEES}>Todos</option>
+            <option value={UNASSIGNED}>Sem responsável</option>
+            {assigneeOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
         <div className="flex flex-col gap-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Status
@@ -521,28 +595,8 @@ export function TasksBoard({
           </span>
           <FilterChips options={DATE_FILTERS} value={dateFilter} onChange={setDateFilter} />
         </div>
-        <div className="flex min-w-44 flex-col gap-1.5">
-          <label
-            htmlFor="task-board-assignee-filter"
-            className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
-          >
-            Responsável
-          </label>
-          <select
-            id="task-board-assignee-filter"
-            className={selectClass}
-            value={assigneeFilter}
-            onChange={(event) => setAssigneeFilter(event.target.value)}
-          >
-            <option value={ALL_ASSIGNEES}>Todos</option>
-            <option value={UNASSIGNED}>Sem responsável</option>
-            {assigneeOptions.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
         </div>
+        
         {filtersActive && (
           <button
             type="button"
@@ -609,7 +663,7 @@ export function TasksBoard({
                         updating={updatingTaskId === task.id}
                         admin={admin}
                         onOpen={setSelected}
-                        onStatusChange={handleStatusChange}
+                        onRequestStatusChange={handleRequestStatusChange}
                       />
                     ))
                   )}
@@ -624,7 +678,26 @@ export function TasksBoard({
         updating={selected ? updatingTaskId === selected.id : false}
         admin={admin}
         onClose={() => setSelected(null)}
-        onStatusChange={handleStatusChange}
+        onRequestStatusChange={handleRequestStatusChange}
+      />
+      <ConfirmDialog
+        open={!!pendingAction}
+        title={confirmTitle}
+        description={
+          pendingAction ? (
+            <span>
+              <strong>{pendingAction.task.title}</strong>
+              <br />
+              {confirmDescription}
+            </span>
+          ) : null
+        }
+        confirmLabel={confirmLabel}
+        loadingLabel="Salvando..."
+        loading={confirmLoading}
+        error={confirmError}
+        onConfirm={handleConfirmStatusChange}
+        onCancel={handleCancelStatusChange}
       />
     </>
   );

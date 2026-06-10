@@ -50,6 +50,8 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  startedTasks Task[] @relation("TaskStartedBy")
+
   @@map("users")
 }
 
@@ -130,6 +132,9 @@ model Task {
   location     Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
   assigneeName String?
   dueDate      DateTime?
+  startedAt    DateTime?
+  startedById  String?
+  startedBy    User?        @relation("TaskStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 

@@ -21,6 +21,7 @@ import { Roles } from '../auth/roles.decorator';
 
 type AuthenticatedRequest = Request & {
   user?: {
+    sub?: string;
     role?: UserRole;
   };
 };
@@ -53,7 +54,7 @@ export class TasksController {
     @Body() dto: UpdateTaskDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.service.update(id, dto, getTenantUuid(req), req.user?.role);
+    return this.service.update(id, dto, getTenantUuid(req), req.user?.role, req.user?.sub);
   }
 
   @Delete(':id')

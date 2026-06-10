@@ -1,6 +1,17 @@
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Map, CheckSquare, Trash2, LogOut, Moon, Sun } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Map,
+  CheckSquare,
+  Trash2,
+  LogOut,
+  Moon,
+  Sun,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,24 +23,39 @@ interface NavItem {
   Icon: LucideIcon;
 }
 
-const sections: { title?: string; items: NavItem[] }[] = [
-  {
-    items: [{ to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard }],
-  },
-  {
-    title: 'Operação',
-    items: [
-      { to: '/map', label: 'Mapa', Icon: Map },
-      { to: '/bins', label: 'Lixeiras', Icon: Trash2 },
-      { to: '/tasks', label: 'Tarefas', Icon: CheckSquare },
-    ],
-  },
-];
+const operationSection = {
+  title: 'Operação',
+  items: [
+    { to: '/map', label: 'Mapa', Icon: Map },
+    { to: '/bins', label: 'Lixeiras', Icon: Trash2 },
+    { to: '/tasks', label: 'Tarefas', Icon: CheckSquare },
+  ],
+} satisfies { title?: string; items: NavItem[] };
+
+const dashboardSection = {
+  items: [{ to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard }],
+} satisfies { title?: string; items: NavItem[] };
+
+const SIDEBAR_STATE_KEY = 'colecta:sidebar-collapsed';
 
 export function MainLayout() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(SIDEBAR_STATE_KEY) === '1';
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_STATE_KEY, collapsed ? '1' : '0');
+  }, [collapsed]);
+
+  const sections: { title?: string; items: NavItem[] }[] =
+    user?.role === 'ADMIN'
+      ? [dashboardSection, operationSection]
+      : [operationSection];
 
   const handleLogout = () => {
     logout();
@@ -48,20 +74,50 @@ export function MainLayout() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col gap-6 border-r border-border bg-sidebar px-4 py-6">
-        <div className="flex items-center gap-3 px-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+      <aside
+        className={cn(
+          'sticky top-0 flex h-screen shrink-0 flex-col gap-6 border-r border-border bg-sidebar py-6 transition-[width] duration-200',
+          collapsed ? 'w-16 px-2' : 'w-60 px-4',
+        )}
+      >
+        <div
+          className={cn(
+            'flex items-center gap-3',
+            collapsed ? 'justify-center px-0' : 'px-2',
+          )}
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
             C
           </div>
-          <div>
-            <div className="text-sm font-bold leading-tight">Colecta</div>
-            <div className="text-xs text-muted-foreground">Gestão de lixeiras</div>
-          </div>
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-bold leading-tight">Colecta</div>
+              <div className="text-xs text-muted-foreground">Gestão de lixeiras</div>
+            </div>
+          )}
         </div>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setCollapsed((c) => !c)}
+          className={cn('justify-start', collapsed && 'justify-center px-0')}
+          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="h-4 w-4" />
+          ) : (
+            <>
+              <PanelLeftClose className="h-4 w-4" />
+              Recolher
+            </>
+          )}
+        </Button>
 
         {sections.map((section, idx) => (
           <nav className="flex flex-col gap-1" key={idx}>
-            {section.title && (
+            {section.title && !collapsed && (
               <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {section.title}
               </p>
@@ -70,9 +126,11 @@ export function MainLayout() {
               <NavLink
                 key={item.to}
                 to={item.to}
+                title={collapsed ? item.label : undefined}
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
+                    'flex items-center gap-2.5 rounded-lg py-2 text-sm transition-colors',
+                    collapsed ? 'justify-center px-0' : 'px-3',
                     isActive
                       ? 'bg-primary/10 font-semibold text-primary'
                       : 'text-foreground hover:bg-muted',
@@ -80,7 +138,7 @@ export function MainLayout() {
                 }
               >
                 <item.Icon className="h-4 w-4 shrink-0" />
-                {item.label}
+                {!collapsed && item.label}
               </NavLink>
             ))}
           </nav>
@@ -88,29 +146,44 @@ export function MainLayout() {
 
         <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
           {user && (
-            <div className="flex items-center gap-2.5 px-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+            <div
+              className={cn(
+                'flex items-center gap-2.5',
+                collapsed ? 'justify-center px-0' : 'px-2',
+              )}
+              title={collapsed ? `${user.name} — ${user.email}` : undefined}
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
                 {initials}
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">{user.name}</div>
-                <div className="truncate text-xs text-muted-foreground">{user.email}</div>
-              </div>
+              {!collapsed && (
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{user.name}</div>
+                  <div className="truncate text-xs text-muted-foreground">{user.email}</div>
+                </div>
+              )}
             </div>
           )}
           <Button
             variant="ghost"
             size="sm"
             onClick={toggleTheme}
-            className="w-full justify-start"
+            className={cn('justify-start', collapsed && 'justify-center px-0')}
             aria-label={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
+            title={collapsed ? (isDark ? 'Modo claro' : 'Modo escuro') : undefined}
           >
             {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            {isDark ? 'Modo claro' : 'Modo escuro'}
+            {!collapsed && (isDark ? 'Modo claro' : 'Modo escuro')}
           </Button>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="w-full justify-start">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className={cn('justify-start', collapsed && 'justify-center px-0')}
+            title={collapsed ? 'Sair' : undefined}
+          >
             <LogOut className="h-4 w-4" />
-            Sair
+            {!collapsed && 'Sair'}
           </Button>
         </div>
       </aside>
