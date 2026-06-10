@@ -67,7 +67,11 @@
       "Bash(DOCKER_BUILDKIT=1 docker build -f apps/api/Dockerfile -t colecta-api:test .)",
       "Bash(docker run *)",
       "Bash(docker stop *)",
-      "Bash(docker rmi *)"
+      "Bash(docker rmi *)",
+      "PowerShell(Get-ChildItem apps\\\\web -Recurse -Directory | Where-Object { $_.FullName -notmatch 'node_modules|\\\\.next' } | Select-Object FullName)",
+      "PowerShell($sql = 'SELECT t.code, t.name, l.name AS location FROM trash_bins t JOIN locations l ON l.id=t.\"locationId\" ORDER BY t.code;'; docker exec colecta-postgres psql -U colecta -d colecta -c $sql)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\mathe\\\\Projetos\\\\Colecta\\\\apps\\\\api\\\\src\" -Directory)",
+      "Bash(Select-Object Name)"
     ]
   }
 }

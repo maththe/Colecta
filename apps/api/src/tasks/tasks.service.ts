@@ -4,10 +4,18 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
-import { Prisma, TaskStatus, UserRole } from '@prisma/client';
+import { Prisma, TaskKind, TaskStatus, TrashBin, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import {
+  composeDescription,
+  composePriority,
+  composeTitle,
+  computeDueDate,
+  Issue,
+  issuesEqual,
+} from '../automation/rules';
 
 type TaskWithBin = Prisma.TaskGetPayload<{
   include: {
@@ -94,6 +102,62 @@ export class TasksService {
     await this.findOne(id, tenantUuid);
     await this.prisma.task.delete({ where: { id } });
     return { id };
+  }
+
+  async findOpenAutoTaskByBin(
+    trashBinId: string,
+    tenantUuid: string,
+  ): Promise<TaskWithBin | null> {
+    return this.prisma.task.findFirst({
+      where: {
+        tenantUuid,
+        trashBinId,
+        kind: TaskKind.auto,
+        status: { in: [TaskStatus.pending, TaskStatus.in_progress] },
+      },
+      include: taskInclude,
+    });
+  }
+
+  async upsertAutoTask(params: {
+    tenantUuid: string;
+    bin: Pick<TrashBin, 'id' | 'code'>;
+    issues: Issue[];
+  }): Promise<TaskWithBin | null> {
+    const { tenantUuid, bin, issues } = params;
+    const open = await this.findOpenAutoTaskByBin(bin.id, tenantUuid);
+
+    if (!open) {
+      if (issues.length === 0) return null;
+      const now = new Date();
+      return this.prisma.task.create({
+        data: {
+          tenantUuid,
+          title: composeTitle(bin.code, issues),
+          description: composeDescription(bin.code, issues),
+          status: TaskStatus.pending,
+          priority: composePriority(issues),
+          kind: TaskKind.auto,
+          issues,
+          trashBin: { connect: { id: bin.id } },
+          dueDate: computeDueDate(issues, now),
+        },
+        include: taskInclude,
+      });
+    }
+
+    if (issuesEqual(open.issues, issues)) return open;
+
+    return this.prisma.task.update({
+      where: { id: open.id },
+      data: {
+        title: composeTitle(bin.code, issues),
+        description: composeDescription(bin.code, issues),
+        priority: composePriority(issues),
+        issues,
+      },
+      include: taskInclude,
+    });
   }
 
   private async assertTrashBinExists(trashBinId: string, tenantUuid: string): Promise<void> {

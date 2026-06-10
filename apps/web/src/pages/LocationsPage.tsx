@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { MapPin, Trash2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
 import { ErrorState, LoadingState, EmptyState } from '../components/States';
 import { Modal } from '../components/Modal';
@@ -153,6 +154,7 @@ function PlacementMap({
 
 export function LocationsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [locations, setLocations] = useState<Location[] | null>(null);
   const [bins, setBins] = useState<TrashBin[]>([]);
   const [mode, setMode] = useState<CreateMode>('location');
@@ -294,11 +296,22 @@ export function LocationsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Adicionar no mapa</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Cadastre posições e lixeiras pela coordenada selecionada
-          </p>
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/map')}
+            aria-label="Voltar para o mapa"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">Adicionar no mapa</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Cadastre posições e lixeiras pela coordenada selecionada
+            </p>
+          </div>
         </div>
 
         <div className="flex rounded-lg border border-border bg-card p-1">

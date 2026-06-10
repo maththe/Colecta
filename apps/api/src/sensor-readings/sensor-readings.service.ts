@@ -2,12 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, SensorReading, TrashBinStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSensorReadingDto } from './dto/create-sensor-reading.dto';
-
-const FILL_LEVEL_FULL_THRESHOLD = 90;
+import { AutomationService } from '../automation/automation.service';
+import { FILL_LEVEL_FULL_THRESHOLD } from '../automation/rules';
 
 @Injectable()
 export class SensorReadingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly automation: AutomationService,
+  ) {}
 
   async findAll(tenantUuid: string): Promise<SensorReading[]> {
     return this.prisma.sensorReading.findMany({
@@ -64,6 +67,8 @@ export class SensorReadingsService {
         },
       }),
     ]);
+
+    await this.automation.evaluateBin(dto.trashBinId, tenantUuid);
 
     return reading;
   }

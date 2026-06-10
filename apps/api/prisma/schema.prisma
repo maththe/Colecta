@@ -29,6 +29,11 @@ enum TaskPriority {
   urgent
 }
 
+enum TaskKind {
+  manual
+  auto
+}
+
 enum UserRole {
   ADMIN
   FUNCIONARIO
@@ -117,6 +122,8 @@ model Task {
   description  String?
   status       TaskStatus   @default(pending)
   priority     TaskPriority @default(medium)
+  kind         TaskKind     @default(manual)
+  issues       String[]     @default([])
   trashBinId   String?      @db.Uuid
   trashBin     TrashBin?    @relation(fields: [trashBinId], references: [id], onDelete: SetNull)
   locationId   String?      @db.Uuid
@@ -130,5 +137,6 @@ model Task {
   @@index([status])
   @@index([trashBinId])
   @@index([locationId])
+  @@index([tenantUuid, trashBinId, kind, status])
   @@map("tasks")
 }
