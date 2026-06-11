@@ -73,7 +73,13 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\mathe\\\\Projetos\\\\Colecta\\\\apps\\\\api\\\\src\" -Directory)",
       "Bash(Select-Object Name)",
       "Read(//c/Users/mathe/.claude/plans//**)",
-      "Bash(mkdir -p /c/Users/mathe/.claude/plans/)"
+      "Bash(mkdir -p /c/Users/mathe/.claude/plans/)",
+      "Bash(xargs grep -l \"analytics\\\\|throughput\\\\|productivity\")",
+      "PowerShell(Get-ChildItem -Recurse -File apps\\\\web\\\\src | Select-Object @{n='Path';e={$_.FullName.Replace\\('C:\\\\Users\\\\mathe\\\\Projetos\\\\Colecta\\\\',''\\)}}, @{n='KB';e={[math]::Round\\($_.Length/1KB,1\\)}} | Sort-Object KB -Descending | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Recurse -File apps\\\\api\\\\src | Select-Object @{n='Path';e={$_.FullName.Replace\\('C:\\\\Users\\\\mathe\\\\Projetos\\\\Colecta\\\\',''\\)}}, @{n='KB';e={[math]::Round\\($_.Length/1KB,1\\)}} | Sort-Object KB -Descending | Format-Table -AutoSize)",
+      "PowerShell(git rm *)",
+      "PowerShell(git *)",
+      "PowerShell(pnpm build *)"
     ]
   }
 }

@@ -2,6 +2,8 @@ import { Controller, Get, Query, Req } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import type { Request } from 'express';
 import { AnalyticsService } from './analytics.service';
+import { ThroughputQueryDto } from './dto/throughput-query.dto';
+import { RangeQueryDto } from '../common/dto/range-query.dto';
 import { getTenantUuid } from '../common/tenant.util';
 import { Roles } from '../auth/roles.decorator';
 
@@ -11,28 +13,25 @@ export class AnalyticsController {
   constructor(private readonly service: AnalyticsService) {}
 
   @Get('summary')
-  summary(
-    @Req() req: Request,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
-    const range = this.service.buildRange(from, to);
+  summary(@Req() req: Request, @Query() query: RangeQueryDto) {
+    const range = this.service.buildRange(query.from, query.to);
     return this.service.summary(getTenantUuid(req), range);
   }
 
   @Get('productivity')
-  productivity(
-    @Req() req: Request,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
-    const range = this.service.buildRange(from, to);
+  productivity(@Req() req: Request, @Query() query: RangeQueryDto) {
+    const range = this.service.buildRange(query.from, query.to);
     return this.service.productivity(getTenantUuid(req), range);
   }
 
   @Get('throughput')
-  throughput(@Req() req: Request, @Query('weeks') weeks?: string) {
-    const parsed = weeks ? Math.max(1, Math.min(52, parseInt(weeks, 10) || 12)) : 12;
-    return this.service.throughput(getTenantUuid(req), parsed);
+  throughput(@Req() req: Request, @Query() query: ThroughputQueryDto) {
+    return this.service.throughput(getTenantUuid(req), query.weeks);
+  }
+
+  @Get('bins')
+  binActivity(@Req() req: Request, @Query() query: RangeQueryDto) {
+    const range = this.service.buildRange(query.from, query.to);
+    return this.service.binActivity(getTenantUuid(req), range);
   }
 }

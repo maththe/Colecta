@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { NotificationsService } from './notifications.service';
+import { ListNotificationsQueryDto } from './dto/list-notifications-query.dto';
 import { getTenantUuid } from '../common/tenant.util';
 
 type AuthenticatedRequest = Request & { user?: { sub?: string } };
@@ -22,13 +23,9 @@ export class NotificationsController {
   constructor(private readonly service: NotificationsService) {}
 
   @Get()
-  list(@Req() req: AuthenticatedRequest, @Query('unread') unread?: string) {
+  list(@Req() req: AuthenticatedRequest, @Query() query: ListNotificationsQueryDto) {
     const userId = this.requireUserId(req);
-    return this.service.listForUser(
-      userId,
-      getTenantUuid(req),
-      unread === 'true' || unread === '1',
-    );
+    return this.service.listForUser(userId, getTenantUuid(req), query.unread ?? false);
   }
 
   @Get('unread-count')

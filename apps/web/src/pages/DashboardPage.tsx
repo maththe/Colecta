@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -11,16 +11,18 @@ import {
   Trash2,
   WifiOff,
 } from 'lucide-react';
-import { api, ApiError } from '../lib/api';
+import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import type { Task, TrashBin, TrashBinStatus, TaskPriority } from '../types';
+import type { TrashBin, TrashBinStatus, TaskPriority } from '../types';
 import { TRASH_BIN_STATUS_LABELS } from '../types';
 import { ErrorState } from '../components/States';
+import { StatCard } from '../components/StatCard';
 import {
   TaskPriorityBadge,
   TaskStatusBadge,
   TrashBinStatusBadge,
 } from '../components/StatusBadge';
+import { useAsyncData } from '../hooks/useAsyncData';
 import { formatRelativeTime } from '../lib/format';
 import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card';
 import {
@@ -71,45 +73,6 @@ function formatDueDate(value: string | null): string {
     day: '2-digit',
     month: '2-digit',
   });
-}
-
-// Compact KPI tile with a tinted icon chip and an optional contextual hint.
-function StatCard({
-  label,
-  value,
-  hint,
-  Icon,
-  tone,
-}: {
-  label: string;
-  value: number | string;
-  hint?: string;
-  Icon: typeof Trash2;
-  tone: 'primary' | 'destructive' | 'warning' | 'info';
-}) {
-  const toneClass = {
-    primary: 'bg-primary/10 text-primary',
-    destructive: 'bg-destructive/10 text-destructive',
-    warning: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-    info: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
-  }[tone];
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <CardDescription>{label}</CardDescription>
-          <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg', toneClass)}>
-            <Icon className="h-4 w-4" />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <p className="text-3xl font-bold tabular-nums">{value}</p>
-        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
 }
 
 // Slim progress bar — used for fill level. Color escalates with severity.
@@ -220,32 +183,22 @@ function DashboardSkeleton() {
   );
 }
 
+async function fetchDashboard() {
+  const [bins, tasks] = await Promise.all([api.trashBins.list(), api.tasks.list()]);
+  return { bins, tasks, fetchedAt: new Date() };
+}
+
 export function DashboardPage() {
   const { user } = useAuth();
-  const [bins, setBins] = useState<TrashBin[] | null>(null);
-  const [tasks, setTasks] = useState<Task[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
-  const load = useCallback(async () => {
-    setError(null);
-    setRefreshing(true);
-    try {
-      const [b, t] = await Promise.all([api.trashBins.list(), api.tasks.list()]);
-      setBins(b);
-      setTasks(t);
-      setLastUpdated(new Date());
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao carregar dados');
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const {
+    data,
+    error,
+    refreshing,
+    reload: load,
+  } = useAsyncData(fetchDashboard, 'Falha ao carregar dados');
+  const bins = data?.bins ?? null;
+  const tasks = data?.tasks ?? null;
+  const lastUpdated = data?.fetchedAt ?? null;
 
   const stats = useMemo(() => {
     if (!bins || !tasks) return null;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -21,9 +21,11 @@ import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { TrashBinForm } from '../components/TrashBinForm';
 import { formatCoord, formatRelativeTime } from '../lib/format';
+import { useAsyncData } from '../hooks/useAsyncData';
 import { useAuth } from '../contexts/AuthContext';
 import { StatCard } from '../components/StatCard';
 import { Button } from '@/components/ui/button';
+import { FilterChips } from '@/components/ui/filter-chips';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -53,9 +55,12 @@ function SkeletonBlock({ className }: { className?: string }) {
 export function BinsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [bins, setBins] = useState<TrashBin[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const {
+    data: bins,
+    error,
+    refreshing,
+    reload: load,
+  } = useAsyncData(api.trashBins.list, 'Falha ao carregar lixeiras');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TrashBin | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -66,23 +71,6 @@ export function BinsPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const canManageBins = user?.role === 'ADMIN';
-
-  async function load() {
-    setError(null);
-    setRefreshing(true);
-    try {
-      const data = await api.trashBins.list();
-      setBins(data);
-    } catch (err: unknown) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao carregar lixeiras');
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
 
   function openCreate() {
     if (!canManageBins) return;
@@ -284,23 +272,18 @@ export function BinsPage() {
                     className="pl-8"
                   />
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <FilterChip
-                    label="Todas"
-                    count={statusCounts.all}
-                    active={statusFilter === 'all'}
-                    onClick={() => setStatusFilter('all')}
-                  />
-                  {(Object.keys(TRASH_BIN_STATUS_LABELS) as TrashBinStatus[]).map((s) => (
-                    <FilterChip
-                      key={s}
-                      label={TRASH_BIN_STATUS_LABELS[s]}
-                      count={statusCounts[s]}
-                      active={statusFilter === s}
-                      onClick={() => setStatusFilter(s)}
-                    />
-                  ))}
-                </div>
+                <FilterChips
+                  options={[
+                    { value: 'all' as StatusFilter, label: 'Todas', count: statusCounts.all },
+                    ...(Object.keys(TRASH_BIN_STATUS_LABELS) as TrashBinStatus[]).map((s) => ({
+                      value: s as StatusFilter,
+                      label: TRASH_BIN_STATUS_LABELS[s],
+                      count: statusCounts[s],
+                    })),
+                  ]}
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                />
               </div>
 
               {visibleBins.length === 0 ? (
@@ -442,40 +425,4 @@ function formatEta(hours: number): string {
   if (hours < 1) return `${Math.round(hours * 60)} min`;
   if (hours < 48) return `${hours.toFixed(1)} h`;
   return `${Math.round(hours / 24)} d`;
-}
-
-// Toggleable status filter pill with a count badge.
-function FilterChip({
-  label,
-  count,
-  active,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-        active
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-border bg-card text-muted-foreground hover:bg-muted',
-      )}
-    >
-      {label}
-      <span
-        className={cn(
-          'tabular-nums',
-          active ? 'text-primary-foreground/80' : 'text-foreground/60',
-        )}
-      >
-        {count}
-      </span>
-    </button>
-  );
 }

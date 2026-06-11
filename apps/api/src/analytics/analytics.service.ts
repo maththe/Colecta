@@ -22,6 +22,14 @@ interface ThroughputBucket {
   created: number;
 }
 
+export interface BinActivityRow {
+  binId: string;
+  code: string;
+  name: string;
+  completed: number;
+  pending: number;
+}
+
 const DEFAULT_RANGE_DAYS = 30;
 const DEFAULT_THROUGHPUT_WEEKS = 12;
 
@@ -37,18 +45,19 @@ export class AnalyticsService {
     return { from: fromDate, to: toDate };
   }
 
-  async summary(tenantUuid: string, range: AnalyticsRange) {
+  private previousRange(range: AnalyticsRange): AnalyticsRange {
+    const span = range.to.getTime() - range.from.getTime();
+    return { from: new Date(range.from.getTime() - span), to: new Date(range.from) };
+  }
+
+  private async computeSummaryMetrics(tenantUuid: string, range: AnalyticsRange) {
     const completedTasks = await this.prisma.task.findMany({
       where: {
         tenantUuid,
         status: TaskStatus.done,
         completedAt: { gte: range.from, lte: range.to },
       },
-      select: {
-        startedAt: true,
-        completedAt: true,
-        dueDate: true,
-      },
+      select: { startedAt: true, completedAt: true, dueDate: true },
     });
 
     const resolutionTimes: number[] = [];
@@ -65,10 +74,25 @@ export class AnalyticsService {
       }
     }
 
-    const avg =
+    const avgResolutionMs =
       resolutionTimes.length > 0
         ? resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length
         : null;
+
+    return {
+      completed: completedTasks.length,
+      avgResolutionMs,
+      onTimeRate: withDueDate > 0 ? onTime / withDueDate : null,
+      onTime,
+      withDueDate,
+    };
+  }
+
+  async summary(tenantUuid: string, range: AnalyticsRange) {
+    const [current, previous] = await Promise.all([
+      this.computeSummaryMetrics(tenantUuid, range),
+      this.computeSummaryMetrics(tenantUuid, this.previousRange(range)),
+    ]);
 
     const now = new Date();
     const openOverdue = await this.prisma.task.count({
@@ -81,12 +105,13 @@ export class AnalyticsService {
 
     return {
       range: { from: range.from.toISOString(), to: range.to.toISOString() },
-      completed: completedTasks.length,
-      avgResolutionMs: avg,
-      onTimeRate: withDueDate > 0 ? onTime / withDueDate : null,
-      onTime,
-      withDueDate,
+      ...current,
       openOverdue,
+      previousPeriod: {
+        completed: previous.completed,
+        avgResolutionMs: previous.avgResolutionMs,
+        onTimeRate: previous.onTimeRate,
+      },
     };
   }
 
@@ -191,6 +216,50 @@ export class AnalyticsService {
     bump(completed, 'completed', 'completedAt');
 
     return [...buckets.values()];
+  }
+
+  async binActivity(tenantUuid: string, range: AnalyticsRange): Promise<BinActivityRow[]> {
+    const [doneTasks, openTasks] = await Promise.all([
+      this.prisma.task.findMany({
+        where: {
+          tenantUuid,
+          status: TaskStatus.done,
+          completedAt: { gte: range.from, lte: range.to },
+          trashBinId: { not: null },
+        },
+        select: { trashBinId: true, trashBin: { select: { id: true, code: true, name: true } } },
+      }),
+      this.prisma.task.findMany({
+        where: {
+          tenantUuid,
+          status: { in: [TaskStatus.pending, TaskStatus.in_progress] },
+          trashBinId: { not: null },
+        },
+        select: { trashBinId: true, trashBin: { select: { id: true, code: true, name: true } } },
+      }),
+    ]);
+
+    const rows = new Map<string, BinActivityRow>();
+
+    for (const t of doneTasks) {
+      if (!t.trashBinId || !t.trashBin) continue;
+      if (!rows.has(t.trashBinId)) {
+        rows.set(t.trashBinId, { binId: t.trashBin.id, code: t.trashBin.code, name: t.trashBin.name, completed: 0, pending: 0 });
+      }
+      rows.get(t.trashBinId)!.completed += 1;
+    }
+
+    for (const t of openTasks) {
+      if (!t.trashBinId || !t.trashBin) continue;
+      if (!rows.has(t.trashBinId)) {
+        rows.set(t.trashBinId, { binId: t.trashBin.id, code: t.trashBin.code, name: t.trashBin.name, completed: 0, pending: 0 });
+      }
+      rows.get(t.trashBinId)!.pending += 1;
+    }
+
+    return [...rows.values()]
+      .sort((a, b) => b.completed + b.pending - (a.completed + a.pending))
+      .slice(0, 10);
   }
 }
 

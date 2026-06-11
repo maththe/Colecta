@@ -5,7 +5,7 @@ import { ErrorState, LoadingState, EmptyState } from '../components/States';
 import type { CreateTaskInput, Location, TrashBin, User } from '../types';
 import { TrashBinMap } from '../components/TrashBinMap';
 import { Modal } from '../components/Modal';
-import { TaskForm } from '../components/TaskForm';
+import { TaskForm } from '../components/tasks';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { MapPin } from 'lucide-react';

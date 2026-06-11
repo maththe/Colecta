@@ -2,6 +2,7 @@ import { Controller, Get, Header, Query, Req } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import type { Request } from 'express';
 import { ReportsService } from './reports.service';
+import { TasksReportQueryDto } from './dto/tasks-report-query.dto';
 import { getTenantUuid } from '../common/tenant.util';
 import { Roles } from '../auth/roles.decorator';
 
@@ -13,18 +14,12 @@ export class ReportsController {
   @Get('tasks.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="tasks.csv"')
-  async tasksCsv(
-    @Req() req: Request,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-    @Query('trashBinId') trashBinId?: string,
-    @Query('startedById') startedById?: string,
-  ) {
+  async tasksCsv(@Req() req: Request, @Query() query: TasksReportQueryDto) {
     return this.service.tasksCsv(getTenantUuid(req), {
-      from,
-      to,
-      trashBinId,
-      startedById,
+      from: query.from,
+      to: query.to,
+      trashBinId: query.trashBinId,
+      startedById: query.startedById,
     });
   }
 }

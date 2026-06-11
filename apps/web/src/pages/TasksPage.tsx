@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import {
   type CreateTaskInput,
@@ -11,20 +11,22 @@ import {
 import { ErrorState, LoadingState, EmptyState } from '../components/States';
 import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { TaskForm } from '../components/TaskForm';
-import { TasksBoard } from '../components/TasksBoard';
+import { TaskForm, TasksBoard } from '../components/tasks';
 import { StatCard } from '../components/StatCard';
+import { useAsyncData } from '../hooks/useAsyncData';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, Clock, ListTodo, Loader, Plus } from 'lucide-react';
 
+interface TasksPageData {
+  tasks: Task[];
+  bins: TrashBin[];
+  locations: Location[];
+  users: User[];
+}
+
 export function TasksPage() {
   const { user } = useAuth();
-  const [tasks, setTasks] = useState<Task[] | null>(null);
-  const [bins, setBins] = useState<TrashBin[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -34,31 +36,30 @@ export function TasksPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const canManageTasks = user?.role === 'ADMIN';
 
-  async function load() {
-    setError(null);
-    try {
-      if (canManageTasks) {
-        const [t, b, l, u] = await Promise.all([
-          api.tasks.list(),
-          api.trashBins.list(),
-          api.locations.list(),
-          api.users.list(),
-        ]);
-        setTasks(t);
-        setBins(b);
-        setLocations(l);
-        setUsers(u);
-      } else {
-        setTasks(await api.tasks.list());
-      }
-    } catch (err: unknown) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao carregar tarefas');
+  // Admin também carrega lixeiras/posições/usuários para preencher o formulário.
+  const fetchData = useCallback(async (): Promise<TasksPageData> => {
+    if (canManageTasks) {
+      const [tasks, bins, locations, users] = await Promise.all([
+        api.tasks.list(),
+        api.trashBins.list(),
+        api.locations.list(),
+        api.users.list(),
+      ]);
+      return { tasks, bins, locations, users };
     }
-  }
-
-  useEffect(() => {
-    load();
+    return { tasks: await api.tasks.list(), bins: [], locations: [], users: [] };
   }, [canManageTasks]);
+
+  const {
+    data,
+    setData,
+    error,
+    reload: load,
+  } = useAsyncData(fetchData, 'Falha ao carregar tarefas');
+  const tasks = data?.tasks ?? null;
+  const bins = data?.bins ?? [];
+  const locations = data?.locations ?? [];
+  const users = data?.users ?? [];
 
   function openCreate() {
     if (!canManageTasks) return;
@@ -126,8 +127,13 @@ export function TasksPage() {
 
   async function handleStatusChange(task: Task, status: TaskStatus): Promise<Task> {
     const updated = await api.tasks.update(task.id, { status });
-    setTasks((current) =>
-      current ? current.map((item) => (item.id === updated.id ? updated : item)) : current,
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            tasks: current.tasks.map((item) => (item.id === updated.id ? updated : item)),
+          }
+        : current,
     );
     return updated;
   }
