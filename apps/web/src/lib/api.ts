@@ -10,7 +10,6 @@ import type {
   ProductivityRow,
   SensorReading,
   Task,
-  TaskComment,
   ThroughputBucket,
   TrashBin,
   User,
@@ -152,13 +151,6 @@ export const api = {
       request<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     remove: (id: string) =>
       request<{ id: string }>(`/tasks/${id}`, { method: 'DELETE' }),
-    listComments: (taskId: string) =>
-      request<TaskComment[]>(`/tasks/${taskId}/comments`),
-    addComment: (taskId: string, body: string) =>
-      request<TaskComment>(`/tasks/${taskId}/comments`, {
-        method: 'POST',
-        body: JSON.stringify({ body }),
-      }),
   },
   sensorReadings: {
     list: () => request<SensorReading[]>('/sensor-readings'),

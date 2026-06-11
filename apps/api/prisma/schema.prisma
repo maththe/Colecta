@@ -45,7 +45,6 @@ enum NotificationKind {
   task_overdue
   task_done
   task_auto
-  task_mention
 }
 
 model User {
@@ -61,7 +60,6 @@ model User {
 
   startedTasks  Task[]         @relation("TaskStartedBy")
   notifications Notification[]
-  taskComments  TaskComment[]
 
   @@map("users")
 }
@@ -151,7 +149,6 @@ model Task {
   updatedAt    DateTime     @updatedAt
 
   notifications Notification[]
-  comments      TaskComment[]
 
   @@index([tenantUuid])
   @@index([status])
@@ -162,21 +159,6 @@ model Task {
   @@map("tasks")
 }
 
-model TaskComment {
-  id         String   @id @default(uuid()) @db.Uuid
-  tenantUuid String
-  taskId     String   @db.Uuid
-  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  authorId   String
-  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  body       String
-  mentions   String[] @default([])
-  createdAt  DateTime @default(now())
-
-  @@index([taskId, createdAt])
-  @@index([tenantUuid])
-  @@map("task_comments")
-}
 
 model Notification {
   id         String           @id @default(uuid()) @db.Uuid

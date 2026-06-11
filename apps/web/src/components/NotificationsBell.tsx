@@ -15,7 +15,6 @@ const KIND_DOT: Record<NotificationKind, string> = {
   task_overdue: 'bg-amber-500',
   task_done: 'bg-primary',
   task_auto: 'bg-muted-foreground/50',
-  task_mention: 'bg-purple-500',
 };
 
 const KIND_LABEL: Record<NotificationKind, string> = {
@@ -24,7 +23,6 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   task_overdue: 'Atrasada',
   task_done: 'Concluída',
   task_auto: 'Automática',
-  task_mention: 'Menção',
 };
 
 export function NotificationsBell({ collapsed }: { collapsed: boolean }) {

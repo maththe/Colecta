@@ -20,7 +20,6 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { ApiError } from '../lib/api';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { TaskComments } from './TaskComments';
 
 const COLUMNS: { status: TaskStatus; dot: string; ring: string }[] = [
   { status: 'pending', dot: 'bg-amber-500', ring: 'ring-amber-500/20' },
@@ -369,8 +368,6 @@ function TaskDetailsModal({
 
             {task.startedBy && <DetailRow label="Iniciada por">{task.startedBy.name}</DetailRow>}
           </dl>
-
-          <TaskComments taskId={task.id} />
 
           {(() => {
             const href = taskMapHref(task);

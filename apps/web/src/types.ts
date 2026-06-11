@@ -119,17 +119,7 @@ export type NotificationKind =
   | 'task_urgent'
   | 'task_overdue'
   | 'task_done'
-  | 'task_auto'
-  | 'task_mention';
-
-export interface TaskComment {
-  id: string;
-  taskId: string;
-  body: string;
-  mentions: string[];
-  createdAt: string;
-  author: { id: string; name: string };
-}
+  | 'task_auto';
 
 export interface Notification {
   id: string;

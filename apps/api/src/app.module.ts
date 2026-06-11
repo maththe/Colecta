@@ -15,7 +15,6 @@ import { RolesGuard } from './auth/roles.guard';
 import { AutomationModule } from './automation/automation.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AnalyticsModule } from './analytics/analytics.module';
-import { CommentsModule } from './comments/comments.module';
 import { MailerModule } from './mailer/mailer.module';
 import { ReportsModule } from './reports/reports.module';
 
@@ -33,7 +32,6 @@ import { ReportsModule } from './reports/reports.module';
     AutomationModule,
     NotificationsModule,
     AnalyticsModule,
-    CommentsModule,
     MailerModule,
     ReportsModule,
     HealthModule,
