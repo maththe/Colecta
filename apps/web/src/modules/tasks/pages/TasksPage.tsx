@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { api, ApiError } from '../lib/api';
+import { api, ApiError } from '@/lib/api';
 import {
   type CreateTaskInput,
   type Location,
@@ -7,14 +7,14 @@ import {
   type TaskStatus,
   type TrashBin,
   type User,
-} from '../types';
-import { ErrorState, LoadingState, EmptyState } from '../components/States';
-import { Modal } from '../components/Modal';
-import { ConfirmDialog } from '../components/ConfirmDialog';
-import { TaskForm, TasksBoard } from '../components/tasks';
-import { StatCard } from '../components/StatCard';
-import { useAsyncData } from '../hooks/useAsyncData';
-import { useAuth } from '../contexts/AuthContext';
+} from '@/types';
+import { ErrorState, LoadingState, EmptyState } from '@/components/States';
+import { Modal } from '@/components/Modal';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { TaskForm, TasksBoard } from '@/modules/tasks/components';
+import { StatCard } from '@/components/StatCard';
+import { useAsyncData } from '@/hooks/useAsyncData';
+import { useAuth } from '@/modules/auth/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, Clock, ListTodo, Loader, Plus } from 'lucide-react';
 

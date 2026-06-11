@@ -75,6 +75,9 @@ model TrashBin {
   status         TrashBinStatus @default(active)
   fillLevel      Int?
   batteryLevel   Int?
+  mqttTopic      String?
+  distanceEmptyCm Float?
+  distanceFullCm  Float?
   lastSeenAt     DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -84,6 +87,7 @@ model TrashBin {
 
   @@unique([tenantUuid, code])
   @@index([tenantUuid])
+  @@index([tenantUuid, mqttTopic])
   @@index([locationId])
   @@index([status])
   @@map("trash_bins")
@@ -112,16 +116,21 @@ model SensorReading {
   tenantUuid   String
   trashBinId   String   @db.Uuid
   trashBin     TrashBin @relation(fields: [trashBinId], references: [id], onDelete: Cascade)
-  fillLevel    Int
+  fillLevel    Int?
+  distanceCm   Float?
   batteryLevel Int?
   temperature  Float?
   latitude     Float?
   longitude    Float?
+  sensorError  String?
+  mqttTopic    String?
+  deviceMillis Float?
   payload      Json?
   receivedAt   DateTime @default(now())
   createdAt    DateTime @default(now())
 
   @@index([tenantUuid, receivedAt])
+  @@index([tenantUuid, mqttTopic, receivedAt])
   @@index([trashBinId, receivedAt])
   @@map("sensor_readings")
 }

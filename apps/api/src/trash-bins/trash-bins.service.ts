@@ -59,6 +59,7 @@ export class TrashBinsService {
       where: {
         trashBinId: { in: bins.map((b) => b.id) },
         receivedAt: { gte: since },
+        fillLevel: { not: null },
       },
       select: { trashBinId: true, fillLevel: true, receivedAt: true },
       orderBy: { receivedAt: 'desc' },
@@ -67,6 +68,7 @@ export class TrashBinsService {
 
     const byBin = new Map<string, { receivedAt: Date; fillLevel: number }[]>();
     for (const r of readings) {
+      if (r.fillLevel === null) continue;
       if (!byBin.has(r.trashBinId)) byBin.set(r.trashBinId, []);
       const list = byBin.get(r.trashBinId)!;
       if (list.length < FORECAST_MAX_SAMPLES) {
@@ -92,6 +94,9 @@ export class TrashBinsService {
           status: dto.status,
           fillLevel: dto.fillLevel,
           batteryLevel: dto.batteryLevel,
+          mqttTopic: dto.mqttTopic?.trim() || null,
+          distanceEmptyCm: dto.distanceEmptyCm ?? null,
+          distanceFullCm: dto.distanceFullCm ?? null,
           location: await this.resolveLocationForCreate(dto, tenantUuid),
         },
         include: trashBinInclude,
@@ -204,6 +209,9 @@ export class TrashBinsService {
     if (dto.status !== undefined) data.status = dto.status;
     if (dto.fillLevel !== undefined) data.fillLevel = dto.fillLevel;
     if (dto.batteryLevel !== undefined) data.batteryLevel = dto.batteryLevel;
+    if (dto.mqttTopic !== undefined) data.mqttTopic = dto.mqttTopic?.trim() || null;
+    if (dto.distanceEmptyCm !== undefined) data.distanceEmptyCm = dto.distanceEmptyCm;
+    if (dto.distanceFullCm !== undefined) data.distanceFullCm = dto.distanceFullCm;
 
     if (dto.locationId !== undefined) {
       if (!dto.locationId) {

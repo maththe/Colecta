@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import type { Task, TaskPriority, TaskStatus } from '../../types';
-import { TASK_PRIORITY_LABELS } from '../../types';
-import { matchesDateFilter, type TaskDateFilter } from '../../lib/task';
+import type { Task, TaskPriority, TaskStatus } from '@/types';
+import { TASK_PRIORITY_LABELS } from '@/types';
+import { matchesDateFilter, type TaskDateFilter } from '@/modules/tasks/lib/task';
 import { FilterChips } from '@/components/ui/filter-chips';
 
 export type StatusFilter = TaskStatus | 'all';

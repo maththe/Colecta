@@ -23,11 +23,11 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { api, ApiError } from '../lib/api';
-import type { BinActivityRow, ThroughputBucket } from '../types';
-import { ErrorState } from '../components/States';
-import { StatCard } from '../components/StatCard';
-import { useAsyncData } from '../hooks/useAsyncData';
+import { api, ApiError } from '@/lib/api';
+import type { BinActivityRow, ThroughputBucket } from '@/types';
+import { ErrorState } from '@/components/States';
+import { StatCard } from '@/components/StatCard';
+import { useAsyncData } from '@/hooks/useAsyncData';
 import {
   Card,
   CardContent,

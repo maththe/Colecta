@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api, ApiError } from '../lib/api';
-import { ErrorState, LoadingState, EmptyState } from '../components/States';
-import type { CreateTaskInput, Location, TrashBin, User } from '../types';
-import { TrashBinMap } from '../components/TrashBinMap';
-import { Modal } from '../components/Modal';
-import { TaskForm } from '../components/tasks';
-import { useAuth } from '../contexts/AuthContext';
+import { api, ApiError } from '@/lib/api';
+import { ErrorState, LoadingState, EmptyState } from '@/components/States';
+import type { CreateTaskInput, Location, TrashBin, User } from '@/types';
+import { TrashBinMap } from '@/modules/trash-bins/components/TrashBinMap';
+import { Modal } from '@/components/Modal';
+import { TaskForm } from '@/modules/tasks/components';
+import { useAuth } from '@/modules/auth/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { MapPin } from 'lucide-react';
 

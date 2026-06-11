@@ -35,6 +35,11 @@ services:
       NODE_ENV: production
       # ATENÇÃO: defina um JWT_SECRET forte em produção (.env ou variável de ambiente)
       JWT_SECRET: ${JWT_SECRET:-troque_este_segredo_em_producao}
+      MQTT_INGEST_ENABLED: ${MQTT_INGEST_ENABLED:-true}
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-mqtt://broker.emqx.io:1883}
+      MQTT_TOPIC: ${MQTT_TOPIC:-binovate/medidas}
+      MQTT_TENANT_UUID: ${MQTT_TENANT_UUID:-00000000-0000-0000-0000-000000000001}
+      MQTT_TRASH_BIN_CODE: ${MQTT_TRASH_BIN_CODE:-PRQ-001}
     ports:
       - "3333:3333"
 

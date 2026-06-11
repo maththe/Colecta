@@ -79,7 +79,13 @@
       "PowerShell(Get-ChildItem -Recurse -File apps\\\\api\\\\src | Select-Object @{n='Path';e={$_.FullName.Replace\\('C:\\\\Users\\\\mathe\\\\Projetos\\\\Colecta\\\\',''\\)}}, @{n='KB';e={[math]::Round\\($_.Length/1KB,1\\)}} | Sort-Object KB -Descending | Format-Table -AutoSize)",
       "PowerShell(git rm *)",
       "PowerShell(git *)",
-      "PowerShell(pnpm build *)"
+      "PowerShell(pnpm build *)",
+      "Bash(git mv *)",
+      "Bash(git rm *)",
+      "Bash(sed -i \"s|'\\\\.\\\\./lib/auth'|'../lib/token'|g\" modules/auth/context/AuthContext.tsx)",
+      "Bash(sed -i \"s|'\\\\.\\\\./components/StatusBadge'|'../components/TrashBinStatusBadge'|g\" modules/trash-bins/pages/BinsPage.tsx)",
+      "Bash(sed -i \"s|'\\\\.\\\\./components/TrashBinForm'|'@/modules/trash-bins/components/TrashBinForm'|g\" modules/locations/pages/LocationsPage.tsx)",
+      "Bash(sed -i \"s|'\\\\.\\\\./components/TrashBinMap'|'@/modules/trash-bins/components/TrashBinMap'|g\" modules/map/pages/MapPage.tsx)"
     ]
   }
 }

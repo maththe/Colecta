@@ -1,5 +1,5 @@
-import type { Notification } from '../../types';
-import { request } from './client';
+import type { Notification } from '@/types';
+import { request } from '@/lib/api/client';
 
 export const notificationsApi = {
   list: (onlyUnread = false) =>

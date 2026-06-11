@@ -1,5 +1,5 @@
-import type { CreateLocationInput, Location } from '../../types';
-import { request } from './client';
+import type { CreateLocationInput, Location } from '@/types';
+import { request } from '@/lib/api/client';
 
 export const locationsApi = {
   list: () => request<Location[]>('/locations'),

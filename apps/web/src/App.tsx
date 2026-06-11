@@ -1,15 +1,15 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { ThemeProvider } from './contexts/ThemeContext';
-import { ProtectedRoute } from './components/ProtectedRoute';
-import { MainLayout } from './layouts/MainLayout';
-import { LoginPage } from './pages/LoginPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { BinsPage } from './pages/BinsPage';
-import { MapPage } from './pages/MapPage';
-import { LocationsPage } from './pages/LocationsPage';
-import { TasksPage } from './pages/TasksPage';
-import { AnalyticsPage } from './pages/AnalyticsPage';
+import { AuthProvider, useAuth } from '@/modules/auth/context/AuthContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { ProtectedRoute } from '@/modules/auth/components/ProtectedRoute';
+import { MainLayout } from '@/layouts/MainLayout';
+import { LoginPage } from '@/modules/auth/pages/LoginPage';
+import { DashboardPage } from '@/modules/dashboard/pages/DashboardPage';
+import { BinsPage } from '@/modules/trash-bins/pages/BinsPage';
+import { MapPage } from '@/modules/map/pages/MapPage';
+import { LocationsPage } from '@/modules/locations/pages/LocationsPage';
+import { TasksPage } from '@/modules/tasks/pages/TasksPage';
+import { AnalyticsPage } from '@/modules/analytics/pages/AnalyticsPage';
 
 function HomeRedirect() {
   const { user } = useAuth();

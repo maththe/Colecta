@@ -17,6 +17,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { MailerModule } from './mailer/mailer.module';
 import { ReportsModule } from './reports/reports.module';
+import { MqttIngestModule } from './mqtt-ingest/mqtt-ingest.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { ReportsModule } from './reports/reports.module';
     AnalyticsModule,
     MailerModule,
     ReportsModule,
+    MqttIngestModule,
     HealthModule,
   ],
   providers: [

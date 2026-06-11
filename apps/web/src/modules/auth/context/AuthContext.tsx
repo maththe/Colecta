@@ -6,9 +6,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { api } from '../lib/api';
-import { clearToken, getToken, setToken } from '../lib/auth';
-import type { User } from '../types';
+import { api } from '@/lib/api';
+import { clearToken, getToken, setToken } from '../lib/token';
+import type { User } from '@/types';
 
 interface AuthContextValue {
   user: User | null;

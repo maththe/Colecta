@@ -1,5 +1,5 @@
-import type { CreateTrashBinInput, SensorReading, TrashBin } from '../../types';
-import { request } from './client';
+import type { CreateTrashBinInput, SensorReading, TrashBin } from '@/types';
+import { request } from '@/lib/api/client';
 
 export const trashBinsApi = {
   list: () => request<TrashBin[]>('/trash-bins'),

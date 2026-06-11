@@ -1,10 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, MapPin, Pencil, Play, Trash2 } from 'lucide-react';
-import type { Task } from '../../types';
-import { TaskPriorityBadge, TaskStatusBadge } from '../StatusBadge';
-import { Modal } from '../Modal';
-import { formatDateTime } from '../../lib/format';
-import { getNextStatusAction, isOverdue, taskMapHref } from '../../lib/task';
+import type { Task } from '@/types';
+import { TaskPriorityBadge, TaskStatusBadge } from './TaskBadges';
+import { Modal } from '@/components/Modal';
+import { formatDateTime } from '@/lib/format';
+import { getNextStatusAction, isOverdue, taskMapHref } from '@/modules/tasks/lib/task';
 import type { AdminActions, TaskStatusRequestHandler } from './types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';

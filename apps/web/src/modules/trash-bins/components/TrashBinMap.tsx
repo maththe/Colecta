@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react';
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Plus } from 'lucide-react';
-import type { Location, TrashBin, TrashBinStatus } from '../types';
-import { TRASH_BIN_STATUS_LABELS } from '../types';
-import { formatCoord, formatRelativeTime } from '../lib/format';
+import type { Location, TrashBin, TrashBinStatus } from '@/types';
+import { TRASH_BIN_STATUS_LABELS } from '@/types';
+import { formatCoord, formatRelativeTime } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 
 // Provider-agnostic map wrapper. The MVP uses Leaflet + OpenStreetMap;

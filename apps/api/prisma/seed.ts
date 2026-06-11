@@ -95,6 +95,9 @@ async function main(): Promise<void> {
           status: b.status,
           fillLevel: b.fill,
           batteryLevel: b.battery,
+          mqttTopic: b.code === 'PRQ-001' ? 'binovate/medidas' : null,
+          distanceEmptyCm: b.code === 'PRQ-001' ? 80 : null,
+          distanceFullCm: b.code === 'PRQ-001' ? 10 : null,
           lastSeenAt:
             b.status === TrashBinStatus.offline
               ? new Date(now.getTime() - 48 * HOUR_MS)

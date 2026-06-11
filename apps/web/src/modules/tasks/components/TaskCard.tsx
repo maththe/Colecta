@@ -8,10 +8,10 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
-import type { Task, TaskStatus } from '../../types';
-import { TaskPriorityBadge } from '../StatusBadge';
-import { formatDateTime } from '../../lib/format';
-import { getNextStatusAction, isOverdue } from '../../lib/task';
+import type { Task, TaskStatus } from '@/types';
+import { TaskPriorityBadge } from './TaskBadges';
+import { formatDateTime } from '@/lib/format';
+import { getNextStatusAction, isOverdue } from '@/modules/tasks/lib/task';
 import type { AdminActions, TaskStatusRequestHandler } from './types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';

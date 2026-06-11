@@ -7,5 +7,6 @@ import { AutomationModule } from '../automation/automation.module';
   imports: [AutomationModule],
   controllers: [SensorReadingsController],
   providers: [SensorReadingsService],
+  exports: [SensorReadingsService],
 })
 export class SensorReadingsModule {}

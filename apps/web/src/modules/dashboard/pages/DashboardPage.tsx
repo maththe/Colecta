@@ -11,19 +11,16 @@ import {
   Trash2,
   WifiOff,
 } from 'lucide-react';
-import { api } from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
-import type { TrashBin, TrashBinStatus, TaskPriority } from '../types';
-import { TRASH_BIN_STATUS_LABELS } from '../types';
-import { ErrorState } from '../components/States';
-import { StatCard } from '../components/StatCard';
-import {
-  TaskPriorityBadge,
-  TaskStatusBadge,
-  TrashBinStatusBadge,
-} from '../components/StatusBadge';
-import { useAsyncData } from '../hooks/useAsyncData';
-import { formatRelativeTime } from '../lib/format';
+import { api } from '@/lib/api';
+import { useAuth } from '@/modules/auth/context/AuthContext';
+import type { TrashBin, TrashBinStatus, TaskPriority } from '@/types';
+import { TRASH_BIN_STATUS_LABELS } from '@/types';
+import { ErrorState } from '@/components/States';
+import { StatCard } from '@/components/StatCard';
+import { TaskPriorityBadge, TaskStatusBadge } from '@/modules/tasks/components/TaskBadges';
+import { TrashBinStatusBadge } from '@/modules/trash-bins/components/TrashBinStatusBadge';
+import { useAsyncData } from '@/hooks/useAsyncData';
+import { formatRelativeTime } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card';
 import {
   Table,

@@ -6,8 +6,10 @@ import {
   IsNumber,
   IsObject,
   IsOptional,
+  IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -15,10 +17,17 @@ export class CreateSensorReadingDto {
   @IsUUID()
   trashBinId!: string;
 
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(100)
-  fillLevel!: number;
+  fillLevel?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(10000)
+  distanceCm?: number;
 
   @IsOptional()
   @IsInt()
@@ -37,6 +46,21 @@ export class CreateSensorReadingDto {
   @IsOptional()
   @IsLongitude()
   longitude?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  sensorError?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  mqttTopic?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  deviceMillis?: number;
 
   @IsOptional()
   @IsObject()

@@ -1,4 +1,4 @@
-import type { Task, TaskStatus } from '../../types';
+import type { Task, TaskStatus } from '@/types';
 
 export type TaskStatusChangeHandler = (task: Task, status: TaskStatus) => Promise<Task>;
 export type TaskStatusRequestHandler = (task: Task, status: TaskStatus) => void;

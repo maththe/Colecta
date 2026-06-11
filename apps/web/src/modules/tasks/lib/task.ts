@@ -1,4 +1,4 @@
-import type { Task, TaskPriority, TaskStatus } from '../types';
+import type { Task, TaskPriority, TaskStatus } from '@/types';
 
 // Deep-link to the map focused on the task's bin or position.
 // Bins take precedence (a bin already carries its own location);

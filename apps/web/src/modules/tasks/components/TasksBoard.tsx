@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import type { Task, TaskStatus } from '../../types';
-import { TASK_STATUS_LABELS } from '../../types';
-import { sortTasks } from '../../lib/task';
-import { ApiError } from '../../lib/api';
-import { ConfirmDialog } from '../ConfirmDialog';
+import type { Task, TaskStatus } from '@/types';
+import { TASK_STATUS_LABELS } from '@/types';
+import { sortTasks } from '@/modules/tasks/lib/task';
+import { ApiError } from '@/lib/api';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TaskCard } from './TaskCard';
 import { TaskDetailsModal } from './TaskDetailsModal';
 import {

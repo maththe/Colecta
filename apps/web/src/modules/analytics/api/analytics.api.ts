@@ -3,8 +3,8 @@ import type {
   BinActivityRow,
   ProductivityRow,
   ThroughputBucket,
-} from '../../types';
-import { downloadBlob, rangeQuery, request, type DateRange } from './client';
+} from '@/types';
+import { downloadBlob, rangeQuery, request, type DateRange } from '@/lib/api/client';
 
 export const analyticsApi = {
   summary: (range?: DateRange) =>

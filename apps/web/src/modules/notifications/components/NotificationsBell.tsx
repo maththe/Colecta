@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck } from 'lucide-react';
-import { api, ApiError } from '../lib/api';
-import type { Notification, NotificationKind } from '../types';
+import { api, ApiError } from '@/lib/api';
+import type { Notification, NotificationKind } from '@/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { formatRelativeTime } from '../lib/format';
+import { formatRelativeTime } from '@/lib/format';
 
 const POLL_INTERVAL_MS = 30_000;
 

@@ -1,5 +1,5 @@
-import type { LoginInput, LoginResponse, User } from '../../types';
-import { request } from './client';
+import type { LoginInput, LoginResponse, User } from '@/types';
+import { request } from '@/lib/api/client';
 
 export const authApi = {
   login: (data: LoginInput) =>

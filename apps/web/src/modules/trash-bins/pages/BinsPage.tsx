@@ -10,20 +10,20 @@ import {
   Search,
   Trash2,
 } from 'lucide-react';
-import { api, ApiError } from '../lib/api';
-import type { CreateTrashBinInput, TrashBin, TrashBinStatus } from '../types';
-import { TRASH_BIN_STATUS_LABELS } from '../types';
-import { ErrorState, EmptyState } from '../components/States';
-import { TrashBinStatusBadge } from '../components/StatusBadge';
+import { api, ApiError } from '@/lib/api';
+import type { CreateTrashBinInput, TrashBin, TrashBinStatus } from '@/types';
+import { TRASH_BIN_STATUS_LABELS } from '@/types';
+import { ErrorState, EmptyState } from '@/components/States';
+import { TrashBinStatusBadge } from '../components/TrashBinStatusBadge';
 import { FillBar } from '../components/FillBar';
 import { BatteryIndicator } from '../components/BatteryIndicator';
-import { Modal } from '../components/Modal';
-import { ConfirmDialog } from '../components/ConfirmDialog';
+import { Modal } from '@/components/Modal';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TrashBinForm } from '../components/TrashBinForm';
-import { formatCoord, formatRelativeTime } from '../lib/format';
-import { useAsyncData } from '../hooks/useAsyncData';
-import { useAuth } from '../contexts/AuthContext';
-import { StatCard } from '../components/StatCard';
+import { formatCoord, formatRelativeTime } from '@/lib/format';
+import { useAsyncData } from '@/hooks/useAsyncData';
+import { useAuth } from '@/modules/auth/context/AuthContext';
+import { StatCard } from '@/components/StatCard';
 import { Button } from '@/components/ui/button';
 import { FilterChips } from '@/components/ui/filter-chips';
 import { Input } from '@/components/ui/input';

@@ -15,9 +15,9 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
-import { NotificationsBell } from '../components/NotificationsBell';
+import { useAuth } from '@/modules/auth/context/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import { NotificationsBell } from '@/modules/notifications/components/NotificationsBell';
 
 interface NavItem {
   to: string;
