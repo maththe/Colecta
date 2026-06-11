@@ -13,6 +13,11 @@ import { UsersModule } from './users/users.module';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './auth/roles.guard';
 import { AutomationModule } from './automation/automation.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { CommentsModule } from './comments/comments.module';
+import { MailerModule } from './mailer/mailer.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -26,6 +31,11 @@ import { AutomationModule } from './automation/automation.module';
     SensorReadingsModule,
     TasksModule,
     AutomationModule,
+    NotificationsModule,
+    AnalyticsModule,
+    CommentsModule,
+    MailerModule,
+    ReportsModule,
     HealthModule,
   ],
   providers: [

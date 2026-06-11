@@ -39,6 +39,15 @@ enum UserRole {
   FUNCIONARIO
 }
 
+enum NotificationKind {
+  task_assigned
+  task_urgent
+  task_overdue
+  task_done
+  task_auto
+  task_mention
+}
+
 model User {
   id         String   @id @default(uuid())
   name       String
@@ -50,7 +59,9 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  startedTasks Task[] @relation("TaskStartedBy")
+  startedTasks  Task[]         @relation("TaskStartedBy")
+  notifications Notification[]
+  taskComments  TaskComment[]
 
   @@map("users")
 }
@@ -135,13 +146,52 @@ model Task {
   startedAt    DateTime?
   startedById  String?
   startedBy    User?        @relation("TaskStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
+  completedAt  DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+
+  notifications Notification[]
+  comments      TaskComment[]
 
   @@index([tenantUuid])
   @@index([status])
   @@index([trashBinId])
   @@index([locationId])
   @@index([tenantUuid, trashBinId, kind, status])
+  @@index([tenantUuid, completedAt])
   @@map("tasks")
+}
+
+model TaskComment {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantUuid String
+  taskId     String   @db.Uuid
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body       String
+  mentions   String[] @default([])
+  createdAt  DateTime @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([tenantUuid])
+  @@map("task_comments")
+}
+
+model Notification {
+  id         String           @id @default(uuid()) @db.Uuid
+  tenantUuid String
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId     String?          @db.Uuid
+  task       Task?            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  kind       NotificationKind
+  title      String
+  body       String?
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  @@index([tenantUuid, userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }

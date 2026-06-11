@@ -341,7 +341,17 @@ export function BinsPage() {
                             <TrashBinStatusBadge status={bin.status} />
                           </TableCell>
                           <TableCell>
-                            <FillBar value={bin.fillLevel} />
+                            <div className="flex flex-col gap-0.5">
+                              <FillBar value={bin.fillLevel} />
+                              {bin.forecast && (
+                                <span
+                                  className="text-[10px] text-muted-foreground"
+                                  title={`Projeção: ~${bin.forecast.slopePerHour} pp/h (${bin.forecast.samples} leituras)`}
+                                >
+                                  cheia em ~{formatEta(bin.forecast.etaHours)}
+                                </span>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <BatteryIndicator value={bin.batteryLevel} />
@@ -426,6 +436,12 @@ export function BinsPage() {
       />
     </div>
   );
+}
+
+function formatEta(hours: number): string {
+  if (hours < 1) return `${Math.round(hours * 60)} min`;
+  if (hours < 48) return `${hours.toFixed(1)} h`;
+  return `${Math.round(hours / 24)} d`;
 }
 
 // Toggleable status filter pill with a count badge.

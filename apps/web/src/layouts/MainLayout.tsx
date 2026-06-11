@@ -11,11 +11,13 @@ import {
   Sun,
   PanelLeftClose,
   PanelLeftOpen,
+  BarChart3,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { NotificationsBell } from '../components/NotificationsBell';
 
 interface NavItem {
   to: string;
@@ -33,7 +35,10 @@ const operationSection = {
 } satisfies { title?: string; items: NavItem[] };
 
 const dashboardSection = {
-  items: [{ to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard }],
+  items: [
+    { to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+    { to: '/analytics', label: 'Analytics', Icon: BarChart3 },
+  ],
 } satisfies { title?: string; items: NavItem[] };
 
 const SIDEBAR_STATE_KEY = 'colecta:sidebar-collapsed';
@@ -145,6 +150,7 @@ export function MainLayout() {
         ))}
 
         <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
+          <NotificationsBell collapsed={collapsed} />
           {user && (
             <div
               className={cn(

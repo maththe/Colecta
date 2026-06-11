@@ -20,6 +20,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { ApiError } from '../lib/api';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { TaskComments } from './TaskComments';
 
 const COLUMNS: { status: TaskStatus; dot: string; ring: string }[] = [
   { status: 'pending', dot: 'bg-amber-500', ring: 'ring-amber-500/20' },
@@ -35,11 +36,11 @@ const PRIORITY_ORDER: Record<TaskPriority, number> = {
   low: 3,
 };
 
-const PRIORITY_ACCENT: Record<TaskPriority, string> = {
-  urgent: 'border-l-destructive',
-  high: 'border-l-amber-500',
-  medium: 'border-l-blue-500',
-  low: 'border-l-muted-foreground/40',
+const STATUS_ACCENT: Record<TaskStatus, string> = {
+  pending: 'border-l-amber-500',
+  in_progress: 'border-l-blue-500',
+  done: 'border-l-primary',
+  cancelled: 'border-l-muted-foreground/40',
 };
 
 type StatusFilter = TaskStatus | 'all';
@@ -188,7 +189,7 @@ function TaskCard({
     <article
       className={cn(
         'flex flex-col gap-2 rounded-lg border border-l-4 border-border bg-card p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
-        PRIORITY_ACCENT[task.priority],
+        STATUS_ACCENT[task.status],
       )}
     >
       <button
@@ -251,10 +252,10 @@ function TaskCard({
               <Button
                 type="button"
                 size="sm"
-                variant="destructive"
+                variant="outline"
                 onClick={() => admin.onDelete?.(task)}
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 Excluir
               </Button>
             </>
@@ -266,6 +267,10 @@ function TaskCard({
               variant={action.status === 'done' ? 'default' : 'outline'}
               disabled={updating}
               onClick={() => onRequestStatusChange(task, action.status)}
+              className={cn(
+                action.status === 'in_progress' &&
+                  'border-blue-500 bg-blue-500 text-white hover:bg-blue-600',
+              )}
             >
               {action.status === 'done' ? (
                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -365,6 +370,8 @@ function TaskDetailsModal({
             {task.startedBy && <DetailRow label="Iniciada por">{task.startedBy.name}</DetailRow>}
           </dl>
 
+          <TaskComments taskId={task.id} />
+
           {(() => {
             const href = taskMapHref(task);
             if (!href && !action && !admin.canManage) return null;
@@ -385,10 +392,10 @@ function TaskDetailsModal({
                     </Button>
                     <Button
                       type="button"
-                      variant="destructive"
+                      variant="outline"
                       onClick={() => admin.onDelete?.(task)}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4 text-destructive" />
                       Excluir
                     </Button>
                   </>
@@ -399,6 +406,10 @@ function TaskDetailsModal({
                     variant={action.status === 'done' ? 'default' : 'outline'}
                     disabled={updating}
                     onClick={() => onRequestStatusChange(task, action.status)}
+                    className={cn(
+                      action.status === 'in_progress' &&
+                        'border-blue-500 bg-blue-500 text-white hover:bg-blue-600',
+                    )}
                   >
                     {action.status === 'done' ? (
                       <CheckCircle2 className="h-4 w-4" />

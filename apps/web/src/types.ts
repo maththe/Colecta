@@ -39,6 +39,13 @@ export interface Location {
   updatedAt: string;
 }
 
+export interface FillForecast {
+  etaHours: number;
+  etaAt: string;
+  slopePerHour: number;
+  samples: number;
+}
+
 export interface TrashBin {
   id: string;
   name: string;
@@ -53,6 +60,7 @@ export interface TrashBin {
   fillLevel: number | null;
   batteryLevel: number | null;
   lastSeenAt: string | null;
+  forecast: FillForecast | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -101,8 +109,61 @@ export interface Task {
   dueDate: string | null;
   startedAt: string | null;
   startedBy: { id: string; name: string } | null;
+  completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type NotificationKind =
+  | 'task_assigned'
+  | 'task_urgent'
+  | 'task_overdue'
+  | 'task_done'
+  | 'task_auto'
+  | 'task_mention';
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  body: string;
+  mentions: string[];
+  createdAt: string;
+  author: { id: string; name: string };
+}
+
+export interface Notification {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string | null;
+  taskId: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface AnalyticsSummary {
+  range: { from: string; to: string };
+  completed: number;
+  avgResolutionMs: number | null;
+  onTimeRate: number | null;
+  onTime: number;
+  withDueDate: number;
+  openOverdue: number;
+}
+
+export interface ProductivityRow {
+  userId: string | null;
+  userName: string | null;
+  completed: number;
+  avgResolutionMs: number | null;
+  onTime: number;
+  withDueDate: number;
+}
+
+export interface ThroughputBucket {
+  weekStart: string;
+  completed: number;
+  created: number;
 }
 
 export interface CreateTaskInput {

@@ -9,6 +9,7 @@ import { BinsPage } from './pages/BinsPage';
 import { MapPage } from './pages/MapPage';
 import { LocationsPage } from './pages/LocationsPage';
 import { TasksPage } from './pages/TasksPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
 
 function HomeRedirect() {
   const { user } = useAuth();
@@ -26,6 +27,7 @@ export function App() {
               <Route path="/" element={<HomeRedirect />} />
               <Route element={<ProtectedRoute allow={['ADMIN']} />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/analytics" element={<AnalyticsPage />} />
               </Route>
               <Route path="/bins" element={<BinsPage />} />
               <Route path="/locations" element={<LocationsPage />} />

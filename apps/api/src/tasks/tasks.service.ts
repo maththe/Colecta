@@ -4,7 +4,15 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
-import { Prisma, TaskKind, TaskStatus, TrashBin, UserRole } from '@prisma/client';
+import {
+  NotificationKind,
+  Prisma,
+  TaskKind,
+  TaskPriority,
+  TaskStatus,
+  TrashBin,
+  UserRole,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -16,6 +24,8 @@ import {
   Issue,
   issuesEqual,
 } from '../automation/rules';
+import { NotificationsService } from '../notifications/notifications.service';
+import { MailerService } from '../mailer/mailer.service';
 
 type TaskWithBin = Prisma.TaskGetPayload<{
   include: {
@@ -33,7 +43,11 @@ const taskInclude = {
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+    private readonly mailer: MailerService,
+  ) {}
 
   async findAll(tenantUuid: string): Promise<TaskWithBin[]> {
     return this.prisma.task.findMany({
@@ -68,7 +82,9 @@ export class TasksService {
       location: dto.locationId ? { connect: { id: dto.locationId } } : undefined,
     };
 
-    return this.prisma.task.create({ data, include: taskInclude });
+    const created = await this.prisma.task.create({ data, include: taskInclude });
+    await this.notifyUrgentAssignee(created);
+    return created;
   }
 
   async update(
@@ -105,7 +121,24 @@ export class TasksService {
       data.startedBy = actorId ? { connect: { id: actorId } } : { disconnect: true };
     }
 
-    return this.prisma.task.update({ where: { id }, data, include: taskInclude });
+    const isCompleting =
+      dto.status === TaskStatus.done && current.status !== TaskStatus.done;
+    if (isCompleting) {
+      data.completedAt = new Date();
+    }
+    const isReopening =
+      dto.status !== undefined &&
+      dto.status !== TaskStatus.done &&
+      current.status === TaskStatus.done;
+    if (isReopening) {
+      data.completedAt = null;
+    }
+
+    return this.prisma.task.update({
+      where: { id },
+      data,
+      include: taskInclude,
+    });
   }
 
   async remove(id: string, tenantUuid: string): Promise<{ id: string }> {
@@ -140,13 +173,14 @@ export class TasksService {
     if (!open) {
       if (issues.length === 0) return null;
       const now = new Date();
-      return this.prisma.task.create({
+      const priority = composePriority(issues);
+      const created = await this.prisma.task.create({
         data: {
           tenantUuid,
           title: composeTitle(bin.code, issues),
           description: composeDescription(bin.code, issues),
           status: TaskStatus.pending,
-          priority: composePriority(issues),
+          priority,
           kind: TaskKind.auto,
           issues,
           trashBin: { connect: { id: bin.id } },
@@ -154,6 +188,9 @@ export class TasksService {
         },
         include: taskInclude,
       });
+      await this.notifyAdminsOfAutoTask(created);
+      await this.notifyUrgentAssignee(created);
+      return created;
     }
 
     if (issuesEqual(open.issues, issues)) return open;
@@ -167,6 +204,42 @@ export class TasksService {
         issues,
       },
       include: taskInclude,
+    });
+  }
+
+  /** Notifica o funcionário responsável quando uma tarefa urgente é criada. */
+  private async notifyUrgentAssignee(task: TaskWithBin): Promise<void> {
+    if (task.priority !== TaskPriority.urgent) return;
+    if (!task.assigneeName) return;
+    const targets = await this.notifications.findUsersByAssigneeName(
+      task.assigneeName,
+      task.tenantUuid,
+    );
+    if (targets.length === 0) return;
+    await this.notifications.emitToUsers(targets, {
+      tenantUuid: task.tenantUuid,
+      kind: NotificationKind.task_urgent,
+      title: `Tarefa urgente: ${task.title}`,
+      body: task.description ?? null,
+      taskId: task.id,
+    });
+    await this.mailer.sendTaskUrgent({
+      tenantUuid: task.tenantUuid,
+      taskId: task.id,
+      taskTitle: task.title,
+      dueDate: task.dueDate,
+      assigneeName: task.assigneeName,
+    });
+  }
+
+  /** Notifica os admins quando a automação cria uma tarefa para uma lixeira. */
+  private async notifyAdminsOfAutoTask(task: TaskWithBin): Promise<void> {
+    await this.notifications.emitToRole(UserRole.ADMIN, {
+      tenantUuid: task.tenantUuid,
+      kind: NotificationKind.task_auto,
+      title: `Tarefa automática: ${task.title}`,
+      body: task.description ?? null,
+      taskId: task.id,
     });
   }
 
