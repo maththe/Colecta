@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -12,6 +12,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   BarChart3,
+  Menu,
+  X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -47,6 +49,8 @@ export function MainLayout() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -57,6 +61,10 @@ export function MainLayout() {
     window.localStorage.setItem(SIDEBAR_STATE_KEY, collapsed ? '1' : '0');
   }, [collapsed]);
 
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
   const sections: { title?: string; items: NavItem[] }[] =
     user?.role === 'ADMIN'
       ? [dashboardSection, operationSection]
@@ -64,10 +72,12 @@ export function MainLayout() {
 
   const handleLogout = () => {
     logout();
+    setMobileOpen(false);
     navigate('/login', { replace: true });
   };
 
   const isDark = theme === 'dark';
+  const navCollapsed = collapsed && !mobileOpen;
 
   const initials = user?.name
     ?.split(' ')
@@ -78,17 +88,61 @@ export function MainLayout() {
     .toUpperCase() ?? '?';
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="sticky top-0 z-30 flex h-screen w-60 shrink-0 flex-col gap-6 border-r border-border bg-sidebar px-4 py-6">
-        <div className="flex items-center gap-3 px-2">
+    <div className="min-h-screen bg-background lg:flex">
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-sidebar px-4 lg:hidden">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Abrir menu"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+          C
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-bold leading-tight">Colecta</div>
+          <div className="truncate text-xs text-muted-foreground">Gestão de lixeiras</div>
+        </div>
+      </header>
+
+      {mobileOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Fechar menu"
+        />
+      )}
+
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 flex h-screen w-60 shrink-0 flex-col gap-6 border-r border-border bg-sidebar px-4 py-6 transition-transform duration-200 lg:sticky lg:top-0 lg:z-30 lg:translate-x-0',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full',
+          navCollapsed && 'lg:w-16 lg:px-2',
+        )}
+      >
+        <div className={cn('flex items-center gap-3 px-2', navCollapsed && 'justify-center px-0')}>
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
             C
           </div>
-          {!collapsed && (
+          {!navCollapsed && (
             <div className="min-w-0 flex-1">
               <div className="text-sm font-bold leading-tight">Colecta</div>
               <div className="text-xs text-muted-foreground">Gestão de lixeiras</div>
             </div>
+          )}
+          {!navCollapsed && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto lg:hidden"
+              onClick={() => setMobileOpen(false)}
+              aria-label="Fechar menu"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           )}
         </div>
 
@@ -96,11 +150,11 @@ export function MainLayout() {
           variant="ghost"
           size="sm"
           onClick={() => setCollapsed((c) => !c)}
-          className={cn('justify-start', collapsed && 'justify-center px-0')}
-          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          className={cn('hidden justify-start lg:inline-flex', navCollapsed && 'justify-center px-0')}
+          aria-label={navCollapsed ? 'Expandir menu' : 'Recolher menu'}
+          title={navCollapsed ? 'Expandir menu' : 'Recolher menu'}
         >
-          {collapsed ? (
+          {navCollapsed ? (
             <PanelLeftOpen className="h-4 w-4" />
           ) : (
             <>
@@ -112,7 +166,7 @@ export function MainLayout() {
 
         {sections.map((section, idx) => (
           <nav className="flex flex-col gap-1" key={idx}>
-            {section.title && !collapsed && (
+            {section.title && !navCollapsed && (
               <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {section.title}
               </p>
@@ -121,11 +175,11 @@ export function MainLayout() {
               <NavLink
                 key={item.to}
                 to={item.to}
-                title={collapsed ? item.label : undefined}
+                title={navCollapsed ? item.label : undefined}
                 className={({ isActive }) =>
                   cn(
                     'flex items-center gap-2.5 rounded-lg py-2 text-sm transition-colors',
-                    collapsed ? 'justify-center px-0' : 'px-3',
+                    navCollapsed ? 'justify-center px-0' : 'px-3',
                     isActive
                       ? 'bg-primary/10 font-semibold text-primary'
                       : 'text-foreground hover:bg-muted',
@@ -133,26 +187,26 @@ export function MainLayout() {
                 }
               >
                 <item.Icon className="h-4 w-4 shrink-0" />
-                {!collapsed && item.label}
+                {!navCollapsed && item.label}
               </NavLink>
             ))}
           </nav>
         ))}
 
         <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
-          <NotificationsBell collapsed={collapsed} />
+          <NotificationsBell collapsed={navCollapsed} />
           {user && (
             <div
               className={cn(
                 'flex items-center gap-2.5',
-                collapsed ? 'justify-center px-0' : 'px-2',
+                navCollapsed ? 'justify-center px-0' : 'px-2',
               )}
-              title={collapsed ? `${user.name} — ${user.email}` : undefined}
+              title={navCollapsed ? `${user.name} — ${user.email}` : undefined}
             >
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
                 {initials}
               </div>
-              {!collapsed && (
+              {!navCollapsed && (
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{user.name}</div>
                   <div className="truncate text-xs text-muted-foreground">{user.email}</div>
@@ -164,27 +218,27 @@ export function MainLayout() {
             variant="ghost"
             size="sm"
             onClick={toggleTheme}
-            className={cn('justify-start', collapsed && 'justify-center px-0')}
+            className={cn('justify-start', navCollapsed && 'justify-center px-0')}
             aria-label={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
-            title={collapsed ? (isDark ? 'Modo claro' : 'Modo escuro') : undefined}
+            title={navCollapsed ? (isDark ? 'Modo claro' : 'Modo escuro') : undefined}
           >
             {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            {!collapsed && (isDark ? 'Modo claro' : 'Modo escuro')}
+            {!navCollapsed && (isDark ? 'Modo claro' : 'Modo escuro')}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleLogout}
-            className={cn('justify-start', collapsed && 'justify-center px-0')}
-            title={collapsed ? 'Sair' : undefined}
+            className={cn('justify-start', navCollapsed && 'justify-center px-0')}
+            title={navCollapsed ? 'Sair' : undefined}
           >
             <LogOut className="h-4 w-4" />
-            {!collapsed && 'Sair'}
+            {!navCollapsed && 'Sair'}
           </Button>
         </div>
       </aside>
 
-      <main className="relative z-0 flex-1 overflow-x-hidden px-8 py-8">
+      <main className="relative z-0 flex-1 overflow-x-hidden px-4 py-4 sm:px-6 lg:px-8 lg:py-8">
         <Outlet />
       </main>
     </div>

@@ -42,6 +42,24 @@ export function sortTasks(tasks: Task[]): Task[] {
   });
 }
 
+// Tarefas finalizadas (concluídas/canceladas) são históricas: o mais recente
+// importa mais que a prioridade, então ordenamos pela data de conclusão.
+function finishedAt(task: Task): number {
+  const ref = task.completedAt ?? task.updatedAt;
+  return ref ? new Date(ref).getTime() : 0;
+}
+
+export function sortTasksByRecency(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => finishedAt(b) - finishedAt(a));
+}
+
+// Colunas "ativas" usam ordenação por prioridade; as finalizadas, por recência.
+export function sortTasksForStatus(status: TaskStatus, tasks: Task[]): Task[] {
+  return status === 'done' || status === 'cancelled'
+    ? sortTasksByRecency(tasks)
+    : sortTasks(tasks);
+}
+
 export type TaskDateFilter = 'all' | 'overdue' | 'today' | 'week' | 'no_date';
 
 function startOfDay(d: Date): Date {

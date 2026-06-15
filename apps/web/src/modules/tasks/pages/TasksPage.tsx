@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '@/lib/api';
 import {
   type CreateTaskInput,
@@ -27,6 +28,8 @@ interface TasksPageData {
 
 export function TasksPage() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusTaskId = searchParams.get('task');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -138,6 +141,13 @@ export function TasksPage() {
     return updated;
   }
 
+  const clearFocusTask = useCallback(() => {
+    if (!focusTaskId) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('task');
+    setSearchParams(next, { replace: true });
+  }, [focusTaskId, searchParams, setSearchParams]);
+
   if (!canManageTasks) {
     return (
       <div className="flex flex-col gap-6">
@@ -152,7 +162,13 @@ export function TasksPage() {
         {!tasks && !error && <LoadingState />}
         {tasks && tasks.length === 0 && <EmptyState label="Nenhuma tarefa atribuída ainda." />}
         {tasks && tasks.length > 0 && (
-          <TasksBoard tasks={tasks} onStatusChange={handleStatusChange} />
+          <TasksBoard
+            tasks={tasks}
+            onStatusChange={handleStatusChange}
+            currentUserName={user?.name ?? null}
+            focusTaskId={focusTaskId}
+            onFocusTaskConsumed={clearFocusTask}
+          />
         )}
       </div>
     );
@@ -198,6 +214,8 @@ export function TasksPage() {
           <TasksBoard
             tasks={tasks}
             onStatusChange={handleStatusChange}
+            focusTaskId={focusTaskId}
+            onFocusTaskConsumed={clearFocusTask}
             canManage
             onEdit={openEdit}
             onDelete={requestRemove}

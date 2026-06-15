@@ -55,6 +55,13 @@ const PRESETS: { value: RangePreset; label: string; days: number }[] = [
   { value: '90d', label: 'Últimos 90 dias', days: 90 },
 ];
 
+const CHART_COLORS = {
+  border: 'var(--border)',
+  muted: 'var(--muted)',
+  mutedForeground: 'var(--muted-foreground)',
+  primary: 'var(--primary)',
+} as const;
+
 function rangeFor(preset: RangePreset): { from: string; to: string } {
   const days = PRESETS.find((p) => p.value === preset)!.days;
   const to = new Date();
@@ -156,23 +163,28 @@ function ThroughputChart({ data }: { data: ThroughputBucket[] }) {
   return (
     <ResponsiveContainer width="100%" height={180}>
       <BarChart data={chartData} barCategoryGap="30%" barGap={2}>
-        <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-border" />
+        <CartesianGrid vertical={false} strokeDasharray="3 3" stroke={CHART_COLORS.border} />
         <XAxis
           dataKey="week"
-          tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+          tick={{ fontSize: 11, fill: CHART_COLORS.mutedForeground }}
           axisLine={false}
           tickLine={false}
         />
         <YAxis
-          tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+          tick={{ fontSize: 11, fill: CHART_COLORS.mutedForeground }}
           axisLine={false}
           tickLine={false}
           width={28}
           allowDecimals={false}
         />
-        <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', radius: 4 }} />
-        <Bar dataKey="Criadas" fill="hsl(var(--muted-foreground) / 0.4)" radius={[3, 3, 0, 0]} />
-        <Bar dataKey="Concluídas" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
+        <Tooltip content={<ChartTooltip />} cursor={{ fill: CHART_COLORS.muted, radius: 4 }} />
+        <Bar
+          dataKey="Criadas"
+          fill={CHART_COLORS.mutedForeground}
+          fillOpacity={0.4}
+          radius={[3, 3, 0, 0]}
+        />
+        <Bar dataKey="Concluídas" fill={CHART_COLORS.primary} radius={[3, 3, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -193,10 +205,10 @@ function BinActivityChart({ data }: { data: BinActivityRow[] }) {
   return (
     <ResponsiveContainer width="100%" height={Math.max(160, chartData.length * 36)}>
       <BarChart data={chartData} layout="vertical" barCategoryGap="25%" barGap={2}>
-        <CartesianGrid horizontal={false} strokeDasharray="3 3" className="stroke-border" />
+        <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke={CHART_COLORS.border} />
         <XAxis
           type="number"
-          tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+          tick={{ fontSize: 11, fill: CHART_COLORS.mutedForeground }}
           axisLine={false}
           tickLine={false}
           allowDecimals={false}
@@ -204,7 +216,7 @@ function BinActivityChart({ data }: { data: BinActivityRow[] }) {
         <YAxis
           type="category"
           dataKey="name"
-          tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+          tick={{ fontSize: 11, fill: CHART_COLORS.mutedForeground }}
           axisLine={false}
           tickLine={false}
           width={52}
@@ -225,14 +237,19 @@ function BinActivityChart({ data }: { data: BinActivityRow[] }) {
               </div>
             );
           }}
-          cursor={{ fill: 'hsl(var(--muted))', radius: 4 }}
+          cursor={{ fill: CHART_COLORS.muted, radius: 4 }}
         />
-        <Bar dataKey="Concluídas" fill="hsl(var(--primary))" radius={[0, 3, 3, 0]}>
+        <Bar dataKey="Concluídas" fill={CHART_COLORS.primary} radius={[0, 3, 3, 0]}>
           {chartData.map((_, index) => (
-            <Cell key={index} fill="hsl(var(--primary))" />
+            <Cell key={index} fill={CHART_COLORS.primary} />
           ))}
         </Bar>
-        <Bar dataKey="Em aberto" fill="hsl(var(--muted-foreground) / 0.35)" radius={[0, 3, 3, 0]} />
+        <Bar
+          dataKey="Em aberto"
+          fill={CHART_COLORS.mutedForeground}
+          fillOpacity={0.35}
+          radius={[0, 3, 3, 0]}
+        />
       </BarChart>
     </ResponsiveContainer>
   );

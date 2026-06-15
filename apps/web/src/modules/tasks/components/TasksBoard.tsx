@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Task, TaskStatus } from '@/types';
 import { TASK_STATUS_LABELS } from '@/types';
-import { sortTasks } from '@/modules/tasks/lib/task';
+import { sortTasksForStatus } from '@/modules/tasks/lib/task';
 import { ApiError } from '@/lib/api';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { FilterChips } from '@/components/ui/filter-chips';
 import { TaskCard } from './TaskCard';
 import { TaskDetailsModal } from './TaskDetailsModal';
 import {
@@ -22,6 +23,13 @@ const COLUMNS: { status: TaskStatus; dot: string; ring: string }[] = [
   { status: 'cancelled', dot: 'bg-muted-foreground', ring: 'ring-foreground/10' },
 ];
 
+// Colunas finalizadas são históricas: mostramos só as mais recentes e
+// liberamos o restante sob demanda, evitando que o quadro cresça sem limite.
+const COMPLETED_VISIBLE_LIMIT = 8;
+const FINISHED: TaskStatus[] = ['done', 'cancelled'];
+
+type Scope = 'mine' | 'all';
+
 function describeStatusError(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 403) return 'Você não tem permissão para alterar esta tarefa.';
@@ -34,12 +42,19 @@ function describeStatusError(err: unknown): string {
 export function TasksBoard({
   tasks,
   onStatusChange,
+  currentUserName,
+  focusTaskId,
+  onFocusTaskConsumed,
   canManage,
   onEdit,
   onDelete,
 }: {
   tasks: Task[];
   onStatusChange: TaskStatusChangeHandler;
+  // Quando informado (funcionário), habilita o filtro "Minhas / Todas".
+  currentUserName?: string | null;
+  focusTaskId?: string | null;
+  onFocusTaskConsumed?: () => void;
 } & AdminActions) {
   const [selected, setSelected] = useState<Task | null>(null);
   // Fecha o modal de detalhe antes de abrir o formulário/confirmação, evitando
@@ -56,6 +71,26 @@ export function TasksBoard({
   );
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [filters, setFilters] = useState<TaskBoardFilterState>(DEFAULT_TASK_FILTERS);
+  const canScope = !!currentUserName;
+  const [scope, setScope] = useState<Scope>(canScope ? 'mine' : 'all');
+  const [expanded, setExpanded] = useState<Partial<Record<TaskStatus, boolean>>>({});
+
+  useEffect(() => {
+    if (!focusTaskId) return;
+    const task = tasks.find((item) => item.id === focusTaskId);
+    if (!task) return;
+    setSelected(task);
+    onFocusTaskConsumed?.();
+  }, [focusTaskId, onFocusTaskConsumed, tasks]);
+
+  // Escopo "Minhas" limita às tarefas atribuídas ao funcionário logado.
+  const scopedTasks = useMemo(
+    () =>
+      canScope && scope === 'mine'
+        ? tasks.filter((task) => task.assigneeName === currentUserName)
+        : tasks,
+    [canScope, scope, tasks, currentUserName],
+  );
 
   const grouped = useMemo(() => {
     const map: Record<TaskStatus, Task[]> = {
@@ -64,18 +99,16 @@ export function TasksBoard({
       done: [],
       cancelled: [],
     };
-    for (const task of tasks) {
+    for (const task of scopedTasks) {
       if (taskMatchesFilters(task, filters)) map[task.status]?.push(task);
     }
     for (const status of Object.keys(map) as TaskStatus[]) {
-      map[status] = sortTasks(map[status]);
+      map[status] = sortTasksForStatus(status, map[status]);
     }
     return map;
-  }, [filters, tasks]);
+  }, [filters, scopedTasks]);
 
-  const visibleColumns =
-    filters.status === 'all' ? COLUMNS : COLUMNS.filter((c) => c.status === filters.status);
-  const visibleTaskCount = visibleColumns.reduce((sum, col) => sum + grouped[col.status].length, 0);
+  const visibleTaskCount = COLUMNS.reduce((sum, col) => sum + grouped[col.status].length, 0);
   const hasResults = visibleTaskCount > 0;
 
   async function handleStatusChange(task: Task, status: TaskStatus): Promise<Task> {
@@ -124,7 +157,23 @@ export function TasksBoard({
 
   return (
     <>
-      <TaskBoardFilters tasks={tasks} value={filters} onChange={setFilters} />
+      {canScope && (
+        <FilterChips
+          options={[
+            { value: 'mine', label: 'Minhas tarefas' },
+            { value: 'all', label: 'Todas da equipe' },
+          ]}
+          value={scope}
+          onChange={(next) => setScope(next as Scope)}
+        />
+      )}
+
+      <TaskBoardFilters
+        tasks={scopedTasks}
+        value={filters}
+        onChange={setFilters}
+        showAssigneeFilter={!canScope || scope === 'all'}
+      />
 
       {actionError && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -134,23 +183,17 @@ export function TasksBoard({
 
       {!hasResults ? (
         <div className="flex items-center justify-center rounded-xl border border-dashed border-border bg-card py-12 text-sm text-muted-foreground">
-          Nenhuma tarefa atende aos filtros selecionados.
+          {scope === 'mine'
+            ? 'Você não tem tarefas que atendam aos filtros selecionados.'
+            : 'Nenhuma tarefa atende aos filtros selecionados.'}
         </div>
       ) : (
-        <div
-          className={cn(
-            'grid gap-4',
-            visibleColumns.length === 1
-              ? 'md:grid-cols-1'
-              : visibleColumns.length === 2
-                ? 'md:grid-cols-2'
-                : visibleColumns.length === 3
-                  ? 'md:grid-cols-2 xl:grid-cols-3'
-                  : 'md:grid-cols-2 xl:grid-cols-4',
-          )}
-        >
-          {visibleColumns.map((col) => {
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {COLUMNS.map((col) => {
             const items = grouped[col.status];
+            const capped = FINISHED.includes(col.status) && !expanded[col.status];
+            const shown = capped ? items.slice(0, COMPLETED_VISIBLE_LIMIT) : items;
+            const hidden = items.length - shown.length;
             return (
               <section
                 key={col.status}
@@ -169,16 +212,27 @@ export function TasksBoard({
                       Sem tarefas
                     </p>
                   ) : (
-                    items.map((task) => (
-                      <TaskCard
-                        key={task.id}
-                        task={task}
-                        updating={updatingTaskId === task.id}
-                        admin={admin}
-                        onOpen={setSelected}
-                        onRequestStatusChange={handleRequestStatusChange}
-                      />
-                    ))
+                    <>
+                      {shown.map((task) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          updating={updatingTaskId === task.id}
+                          admin={admin}
+                          onOpen={setSelected}
+                          onRequestStatusChange={handleRequestStatusChange}
+                        />
+                      ))}
+                      {hidden > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setExpanded((prev) => ({ ...prev, [col.status]: true }))}
+                          className="rounded-lg border border-dashed border-border py-2 text-center text-xs font-medium text-primary hover:bg-muted"
+                        >
+                          Ver mais {hidden} {hidden === 1 ? 'tarefa' : 'tarefas'}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </section>

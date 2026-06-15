@@ -119,18 +119,21 @@ export function MapPage() {
     if (!canCreateTasks || (!selectedBin && !selectedLocation)) return;
     setSubmitting(true);
     setFormError(null);
+    let createdTaskId: string | null = null;
     try {
-      await api.tasks.create({
+      const created = await api.tasks.create({
         ...values,
         trashBinId: values.trashBinId ?? selectedBin?.id ?? null,
         locationId: values.locationId ?? selectedLocation?.id ?? null,
       });
+      createdTaskId = created.id;
       closeTaskModal();
     } catch (err: unknown) {
       setFormError(err instanceof ApiError ? err.message : 'Erro ao criar tarefa');
     } finally {
       setSubmitting(false);
     }
+    if (createdTaskId) navigate(`/tasks?task=${createdTaskId}`);
   }
 
   return (

@@ -99,7 +99,7 @@ export function NotificationsBell({ collapsed }: { collapsed: boolean }) {
     }
     if (n.taskId) {
       setOpen(false);
-      navigate('/tasks');
+      navigate(`/tasks?task=${n.taskId}`);
     }
   };
 

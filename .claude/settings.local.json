@@ -85,7 +85,10 @@
       "Bash(sed -i \"s|'\\\\.\\\\./lib/auth'|'../lib/token'|g\" modules/auth/context/AuthContext.tsx)",
       "Bash(sed -i \"s|'\\\\.\\\\./components/StatusBadge'|'../components/TrashBinStatusBadge'|g\" modules/trash-bins/pages/BinsPage.tsx)",
       "Bash(sed -i \"s|'\\\\.\\\\./components/TrashBinForm'|'@/modules/trash-bins/components/TrashBinForm'|g\" modules/locations/pages/LocationsPage.tsx)",
-      "Bash(sed -i \"s|'\\\\.\\\\./components/TrashBinMap'|'@/modules/trash-bins/components/TrashBinMap'|g\" modules/map/pages/MapPage.tsx)"
+      "Bash(sed -i \"s|'\\\\.\\\\./components/TrashBinMap'|'@/modules/trash-bins/components/TrashBinMap'|g\" modules/map/pages/MapPage.tsx)",
+      "Bash(git grep *)",
+      "Bash(npx eslint *)",
+      "Bash(npm run *)"
     ]
   }
 }

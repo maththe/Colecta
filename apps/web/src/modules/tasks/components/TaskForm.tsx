@@ -72,6 +72,8 @@ export function TaskForm({
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     defaultValues: {
@@ -80,12 +82,17 @@ export function TaskForm({
       status: initial?.status ?? defaults?.status ?? 'pending',
       priority: initial?.priority ?? defaults?.priority ?? 'medium',
       trashBinId: initial?.trashBinId ?? defaults?.trashBinId ?? '',
-      locationId: initial?.locationId ?? defaults?.locationId ?? '',
+      locationId:
+        initial?.trashBinId || defaults?.trashBinId
+          ? ''
+          : initial?.locationId ?? defaults?.locationId ?? '',
       assigneeName: initial?.assigneeName ?? defaults?.assigneeName ?? '',
       dueDate: toLocalInput(initial?.dueDate ?? defaults?.dueDate),
     },
   });
 
+  const selectedTrashBinId = watch('trashBinId');
+  const selectedLocationId = watch('locationId');
   const isEditing = Boolean(initial);
   const submit = handleSubmit((values) => {
     const trimmedDesc = values.description?.trim() ?? '';
@@ -182,7 +189,18 @@ export function TaskForm({
         <>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="task-bin">Lixeira relacionada</Label>
-            <select id="task-bin" className={selectClass} {...register('trashBinId')}>
+            <select
+              id="task-bin"
+              className={selectClass}
+              disabled={!!selectedLocationId}
+              {...register('trashBinId', {
+                onChange: (event) => {
+                  if ((event.target as HTMLSelectElement).value) {
+                    setValue('locationId', '');
+                  }
+                },
+              })}
+            >
               <option value="">— Nenhuma —</option>
               {bins.map((bin) => (
                 <option key={bin.id} value={bin.id}>
@@ -195,7 +213,18 @@ export function TaskForm({
           {locations.length > 0 && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="task-location">Posição relacionada</Label>
-              <select id="task-location" className={selectClass} {...register('locationId')}>
+              <select
+                id="task-location"
+                className={selectClass}
+                disabled={!!selectedTrashBinId}
+                {...register('locationId', {
+                  onChange: (event) => {
+                    if ((event.target as HTMLSelectElement).value) {
+                      setValue('trashBinId', '');
+                    }
+                  },
+                })}
+              >
                 <option value="">— Nenhuma —</option>
                 {locations.map((location) => (
                   <option key={location.id} value={location.id}>
@@ -212,6 +241,7 @@ export function TaskForm({
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="task-assignee">Responsável</Label>
           <select id="task-assignee" className={selectClass} {...register('assigneeName')}>
+            <option value="">Sem responsável</option>
             {users.map((user) => (
               <option key={user.id} value={user.name}>
                 {user.name}
