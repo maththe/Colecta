@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTrashBinDto } from './dto/create-trash-bin.dto';
 import { UpdateTrashBinDto } from './dto/update-trash-bin.dto';
+import { FillForecast, forecastFill } from './forecast';
 
 type TrashBinWithLocation = Prisma.TrashBinGetPayload<{
   include: { location: true };
@@ -17,7 +18,11 @@ type TrashBinResponse = TrashBinWithLocation & {
   locationDescription: string | null;
   latitude: number;
   longitude: number;
+  forecast: FillForecast | null;
 };
+
+const FORECAST_LOOKBACK_DAYS = 7;
+const FORECAST_MAX_SAMPLES = 50;
 
 const trashBinInclude = {
   location: true,
@@ -33,11 +38,49 @@ export class TrashBinsService {
       include: trashBinInclude,
       orderBy: { createdAt: 'desc' },
     });
-    return bins.map((bin) => this.toResponse(bin));
+    const forecasts = await this.computeForecasts(bins);
+    return bins.map((bin) => this.toResponse(bin, forecasts.get(bin.id) ?? null));
   }
 
   async findOne(id: string, tenantUuid: string): Promise<TrashBinResponse> {
-    return this.toResponse(await this.findOneRaw(id, tenantUuid));
+    const bin = await this.findOneRaw(id, tenantUuid);
+    const forecasts = await this.computeForecasts([bin]);
+    return this.toResponse(bin, forecasts.get(bin.id) ?? null);
+  }
+
+  private async computeForecasts(
+    bins: TrashBinWithLocation[],
+  ): Promise<Map<string, FillForecast | null>> {
+    const result = new Map<string, FillForecast | null>();
+    if (bins.length === 0) return result;
+    const since = new Date(Date.now() - FORECAST_LOOKBACK_DAYS * 24 * 3600_000);
+
+    const readings = await this.prisma.sensorReading.findMany({
+      where: {
+        trashBinId: { in: bins.map((b) => b.id) },
+        receivedAt: { gte: since },
+        fillLevel: { not: null },
+      },
+      select: { trashBinId: true, fillLevel: true, receivedAt: true },
+      orderBy: { receivedAt: 'desc' },
+      take: bins.length * FORECAST_MAX_SAMPLES,
+    });
+
+    const byBin = new Map<string, { receivedAt: Date; fillLevel: number }[]>();
+    for (const r of readings) {
+      if (r.fillLevel === null) continue;
+      if (!byBin.has(r.trashBinId)) byBin.set(r.trashBinId, []);
+      const list = byBin.get(r.trashBinId)!;
+      if (list.length < FORECAST_MAX_SAMPLES) {
+        list.push({ receivedAt: r.receivedAt, fillLevel: r.fillLevel });
+      }
+    }
+
+    for (const bin of bins) {
+      const points = byBin.get(bin.id) ?? [];
+      result.set(bin.id, forecastFill(points, bin.fillLevel));
+    }
+    return result;
   }
 
   async create(dto: CreateTrashBinDto, tenantUuid: string): Promise<TrashBinResponse> {
@@ -51,11 +94,14 @@ export class TrashBinsService {
           status: dto.status,
           fillLevel: dto.fillLevel,
           batteryLevel: dto.batteryLevel,
+          mqttTopic: dto.mqttTopic?.trim() || null,
+          distanceEmptyCm: dto.distanceEmptyCm ?? null,
+          distanceFullCm: dto.distanceFullCm ?? null,
           location: await this.resolveLocationForCreate(dto, tenantUuid),
         },
         include: trashBinInclude,
       });
-      return this.toResponse(bin);
+      return this.toResponse(bin, null);
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new ConflictException(`A trash bin with code "${dto.code}" already exists`);
@@ -73,7 +119,8 @@ export class TrashBinsService {
         data: await this.buildUpdateData(dto, tenantUuid, existing.location),
         include: trashBinInclude,
       });
-      return this.toResponse(bin);
+      const forecasts = await this.computeForecasts([bin]);
+      return this.toResponse(bin, forecasts.get(bin.id) ?? null);
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new ConflictException(`A trash bin with code "${dto.code ?? existing.code}" already exists`);
@@ -109,12 +156,16 @@ export class TrashBinsService {
     return bin;
   }
 
-  private toResponse(bin: TrashBinWithLocation): TrashBinResponse {
+  private toResponse(
+    bin: TrashBinWithLocation,
+    forecast: FillForecast | null,
+  ): TrashBinResponse {
     return {
       ...bin,
       locationDescription: bin.location.description,
       latitude: bin.location.latitude,
       longitude: bin.location.longitude,
+      forecast,
     };
   }
 
@@ -158,6 +209,9 @@ export class TrashBinsService {
     if (dto.status !== undefined) data.status = dto.status;
     if (dto.fillLevel !== undefined) data.fillLevel = dto.fillLevel;
     if (dto.batteryLevel !== undefined) data.batteryLevel = dto.batteryLevel;
+    if (dto.mqttTopic !== undefined) data.mqttTopic = dto.mqttTopic?.trim() || null;
+    if (dto.distanceEmptyCm !== undefined) data.distanceEmptyCm = dto.distanceEmptyCm;
+    if (dto.distanceFullCm !== undefined) data.distanceFullCm = dto.distanceFullCm;
 
     if (dto.locationId !== undefined) {
       if (!dto.locationId) {

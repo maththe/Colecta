@@ -4,6 +4,7 @@ import {
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -61,4 +62,21 @@ export class CreateTrashBinDto {
   @Min(0)
   @Max(100)
   batteryLevel?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  mqttTopic?: string | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(10000)
+  distanceEmptyCm?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(10000)
+  distanceFullCm?: number | null;
 }

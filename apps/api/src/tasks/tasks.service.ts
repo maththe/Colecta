@@ -4,26 +4,50 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
-import { Prisma, TaskStatus, UserRole } from '@prisma/client';
+import {
+  NotificationKind,
+  Prisma,
+  TaskKind,
+  TaskPriority,
+  TaskStatus,
+  TrashBin,
+  UserRole,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import {
+  composeDescription,
+  composePriority,
+  composeTitle,
+  computeDueDate,
+  Issue,
+  issuesEqual,
+} from '../automation/rules';
+import { NotificationsService } from '../notifications/notifications.service';
+import { MailerService } from '../mailer/mailer.service';
 
 type TaskWithBin = Prisma.TaskGetPayload<{
   include: {
     trashBin: { select: { id: true; name: true; code: true } };
     location: { select: { id: true; name: true; latitude: true; longitude: true } };
+    startedBy: { select: { id: true; name: true } };
   };
 }>;
 
 const taskInclude = {
   trashBin: { select: { id: true, name: true, code: true } },
   location: { select: { id: true, name: true, latitude: true, longitude: true } },
+  startedBy: { select: { id: true, name: true } },
 } satisfies Prisma.TaskInclude;
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+    private readonly mailer: MailerService,
+  ) {}
 
   async findAll(tenantUuid: string): Promise<TaskWithBin[]> {
     return this.prisma.task.findMany({
@@ -58,7 +82,9 @@ export class TasksService {
       location: dto.locationId ? { connect: { id: dto.locationId } } : undefined,
     };
 
-    return this.prisma.task.create({ data, include: taskInclude });
+    const created = await this.prisma.task.create({ data, include: taskInclude });
+    await this.notifyUrgentAssignee(created);
+    return created;
   }
 
   async update(
@@ -66,6 +92,7 @@ export class TasksService {
     dto: UpdateTaskDto,
     tenantUuid: string,
     actorRole?: UserRole,
+    actorId?: string,
   ): Promise<TaskWithBin> {
     const current = await this.findOne(id, tenantUuid);
     this.assertCanUpdate(actorRole, current.status, dto);
@@ -87,13 +114,133 @@ export class TasksService {
       data.location = dto.locationId ? { connect: { id: dto.locationId } } : { disconnect: true };
     }
 
-    return this.prisma.task.update({ where: { id }, data, include: taskInclude });
+    const isStarting =
+      dto.status === TaskStatus.in_progress && current.status === TaskStatus.pending;
+    if (isStarting) {
+      data.startedAt = new Date();
+      data.startedBy = actorId ? { connect: { id: actorId } } : { disconnect: true };
+    }
+
+    const isCompleting =
+      dto.status === TaskStatus.done && current.status !== TaskStatus.done;
+    if (isCompleting) {
+      data.completedAt = new Date();
+    }
+    const isReopening =
+      dto.status !== undefined &&
+      dto.status !== TaskStatus.done &&
+      current.status === TaskStatus.done;
+    if (isReopening) {
+      data.completedAt = null;
+    }
+
+    return this.prisma.task.update({
+      where: { id },
+      data,
+      include: taskInclude,
+    });
   }
 
   async remove(id: string, tenantUuid: string): Promise<{ id: string }> {
     await this.findOne(id, tenantUuid);
     await this.prisma.task.delete({ where: { id } });
     return { id };
+  }
+
+  async findOpenAutoTaskByBin(
+    trashBinId: string,
+    tenantUuid: string,
+  ): Promise<TaskWithBin | null> {
+    return this.prisma.task.findFirst({
+      where: {
+        tenantUuid,
+        trashBinId,
+        kind: TaskKind.auto,
+        status: { in: [TaskStatus.pending, TaskStatus.in_progress] },
+      },
+      include: taskInclude,
+    });
+  }
+
+  async upsertAutoTask(params: {
+    tenantUuid: string;
+    bin: Pick<TrashBin, 'id' | 'code'>;
+    issues: Issue[];
+  }): Promise<TaskWithBin | null> {
+    const { tenantUuid, bin, issues } = params;
+    const open = await this.findOpenAutoTaskByBin(bin.id, tenantUuid);
+
+    if (!open) {
+      if (issues.length === 0) return null;
+      const now = new Date();
+      const priority = composePriority(issues);
+      const created = await this.prisma.task.create({
+        data: {
+          tenantUuid,
+          title: composeTitle(bin.code, issues),
+          description: composeDescription(bin.code, issues),
+          status: TaskStatus.pending,
+          priority,
+          kind: TaskKind.auto,
+          issues,
+          trashBin: { connect: { id: bin.id } },
+          dueDate: computeDueDate(issues, now),
+        },
+        include: taskInclude,
+      });
+      await this.notifyAdminsOfAutoTask(created);
+      await this.notifyUrgentAssignee(created);
+      return created;
+    }
+
+    if (issuesEqual(open.issues, issues)) return open;
+
+    return this.prisma.task.update({
+      where: { id: open.id },
+      data: {
+        title: composeTitle(bin.code, issues),
+        description: composeDescription(bin.code, issues),
+        priority: composePriority(issues),
+        issues,
+      },
+      include: taskInclude,
+    });
+  }
+
+  /** Notifica o funcionário responsável quando uma tarefa urgente é criada. */
+  private async notifyUrgentAssignee(task: TaskWithBin): Promise<void> {
+    if (task.priority !== TaskPriority.urgent) return;
+    if (!task.assigneeName) return;
+    const targets = await this.notifications.findUsersByAssigneeName(
+      task.assigneeName,
+      task.tenantUuid,
+    );
+    if (targets.length === 0) return;
+    await this.notifications.emitToUsers(targets, {
+      tenantUuid: task.tenantUuid,
+      kind: NotificationKind.task_urgent,
+      title: `Tarefa urgente: ${task.title}`,
+      body: task.description ?? null,
+      taskId: task.id,
+    });
+    await this.mailer.sendTaskUrgent({
+      tenantUuid: task.tenantUuid,
+      taskId: task.id,
+      taskTitle: task.title,
+      dueDate: task.dueDate,
+      assigneeName: task.assigneeName,
+    });
+  }
+
+  /** Notifica os admins quando a automação cria uma tarefa para uma lixeira. */
+  private async notifyAdminsOfAutoTask(task: TaskWithBin): Promise<void> {
+    await this.notifications.emitToRole(UserRole.ADMIN, {
+      tenantUuid: task.tenantUuid,
+      kind: NotificationKind.task_auto,
+      title: `Tarefa automática: ${task.title}`,
+      body: task.description ?? null,
+      taskId: task.id,
+    });
   }
 
   private async assertTrashBinExists(trashBinId: string, tenantUuid: string): Promise<void> {

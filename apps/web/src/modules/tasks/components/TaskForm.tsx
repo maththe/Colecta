@@ -1,0 +1,238 @@
+import { useForm } from 'react-hook-form';
+import {
+  TASK_PRIORITY_LABELS,
+  TASK_STATUS_LABELS,
+  type CreateTaskInput,
+  type Location,
+  type Task,
+  type TaskPriority,
+  type TaskStatus,
+  type TrashBin,
+  type User,
+} from '@/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { MapPin, Trash2 } from 'lucide-react';
+
+// When the form is opened from the map for a specific marker, the link is
+// already fixed by what the user clicked. The `target` describes that marker
+// so the form can show it read-only and skip the bin/location dropdowns.
+export type TaskFormTarget =
+  | { kind: 'bin'; bin: TrashBin }
+  | { kind: 'location'; location: Location };
+
+interface Props {
+  initial?: Task | null;
+  defaults?: Partial<CreateTaskInput>;
+  bins: TrashBin[];
+  locations?: Location[];
+  users: User[];
+  /** Fixed bin/location when launched from a map marker. */
+  target?: TaskFormTarget;
+  submitting?: boolean;
+  onCancel: () => void;
+  onSubmit: (values: CreateTaskInput) => void | Promise<void>;
+}
+
+type FormValues = {
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  trashBinId?: string;
+  locationId?: string;
+  assigneeName?: string;
+  dueDate?: string;
+};
+
+function toLocalInput(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+const selectClass =
+  'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50';
+
+export function TaskForm({
+  initial,
+  defaults,
+  bins,
+  locations = [],
+  users,
+  target,
+  submitting,
+  onCancel,
+  onSubmit,
+}: Props) {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<FormValues>({
+    defaultValues: {
+      title: initial?.title ?? defaults?.title ?? '',
+      description: initial?.description ?? defaults?.description ?? '',
+      status: initial?.status ?? defaults?.status ?? 'pending',
+      priority: initial?.priority ?? defaults?.priority ?? 'medium',
+      trashBinId: initial?.trashBinId ?? defaults?.trashBinId ?? '',
+      locationId: initial?.locationId ?? defaults?.locationId ?? '',
+      assigneeName: initial?.assigneeName ?? defaults?.assigneeName ?? '',
+      dueDate: toLocalInput(initial?.dueDate ?? defaults?.dueDate),
+    },
+  });
+
+  const isEditing = Boolean(initial);
+  const submit = handleSubmit((values) => {
+    const trimmedDesc = values.description?.trim() ?? '';
+    const trimmedAssignee = values.assigneeName?.trim() ?? '';
+    // When the form is bound to a map marker, the link is fixed by `target`
+    // and the dropdowns are hidden — derive the ids from it directly so the
+    // payload is correct regardless of any unrendered field state.
+    const link = target
+      ? target.kind === 'bin'
+        ? { trashBinId: target.bin.id, locationId: null }
+        : { trashBinId: null, locationId: target.location.id }
+      : {
+          trashBinId: values.trashBinId ? values.trashBinId : null,
+          locationId: values.locationId ? values.locationId : null,
+        };
+    const payload: CreateTaskInput = {
+      title: values.title.trim(),
+      description: trimmedDesc ? trimmedDesc : isEditing ? null : undefined,
+      status: values.status,
+      priority: values.priority,
+      trashBinId: link.trashBinId,
+      locationId: link.locationId,
+      assigneeName: trimmedAssignee ? trimmedAssignee : isEditing ? null : undefined,
+      dueDate: values.dueDate
+        ? new Date(values.dueDate).toISOString()
+        : isEditing
+          ? null
+          : undefined,
+    };
+    return onSubmit(payload);
+  });
+
+  return (
+    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="task-title">Título</Label>
+        <Input
+          id="task-title"
+          {...register('title', { required: 'Informe o título' })}
+          aria-invalid={!!errors.title}
+        />
+        {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="task-desc">Descrição</Label>
+        <Textarea id="task-desc" rows={3} {...register('description')} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="task-status">Status</Label>
+          <select id="task-status" className={selectClass} {...register('status')}>
+            {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="task-priority">Prioridade</Label>
+          <select id="task-priority" className={selectClass} {...register('priority')}>
+            {Object.entries(TASK_PRIORITY_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {target ? (
+        <div className="flex flex-col gap-1.5">
+          <Label>{target.kind === 'bin' ? 'Lixeira' : 'Posição'}</Label>
+          <div className="flex items-center gap-2 rounded-lg border border-input bg-muted/40 px-2.5 py-2 text-sm">
+            {target.kind === 'bin' ? (
+              <>
+                <Trash2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                  {target.bin.code}
+                </span>
+                <span className="text-muted-foreground">{target.bin.name}</span>
+              </>
+            ) : (
+              <>
+                <MapPin className="h-4 w-4 shrink-0 text-primary" />
+                <span>{target.location.name}</span>
+              </>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="task-bin">Lixeira relacionada</Label>
+            <select id="task-bin" className={selectClass} {...register('trashBinId')}>
+              <option value="">— Nenhuma —</option>
+              {bins.map((bin) => (
+                <option key={bin.id} value={bin.id}>
+                  {bin.code} — {bin.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {locations.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="task-location">Posição relacionada</Label>
+              <select id="task-location" className={selectClass} {...register('locationId')}>
+                <option value="">— Nenhuma —</option>
+                {locations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </>
+      )}
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="task-assignee">Responsável</Label>
+          <select id="task-assignee" className={selectClass} {...register('assigneeName')}>
+            {users.map((user) => (
+              <option key={user.id} value={user.name}>
+                {user.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="task-due">Data limite</Label>
+          <Input id="task-due" type="datetime-local" {...register('dueDate')} />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 pt-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={submitting}>
+          {submitting ? 'Salvando...' : initial ? 'Salvar' : 'Criar tarefa'}
+        </Button>
+      </div>
+    </form>
+  );
+}
