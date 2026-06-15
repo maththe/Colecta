@@ -7,7 +7,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
-import { TaskPriority, TaskStatus } from '@prisma/client';
+import { TaskPriority, TaskStatus, UserRole } from '@prisma/client';
 
 export class CreateTaskDto {
   @IsString()
@@ -40,6 +40,9 @@ export class CreateTaskDto {
   @IsString()
   @MaxLength(120)
   assigneeName?: string | null;
+
+  @IsEnum(UserRole)
+  assigneeRole!: UserRole;
 
   @IsOptional()
   @IsDateString()

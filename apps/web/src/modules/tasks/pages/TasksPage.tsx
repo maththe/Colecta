@@ -166,6 +166,7 @@ export function TasksPage() {
             tasks={tasks}
             onStatusChange={handleStatusChange}
             currentUserName={user?.name ?? null}
+            currentUserRole={user?.role ?? null}
             focusTaskId={focusTaskId}
             onFocusTaskConsumed={clearFocusTask}
           />

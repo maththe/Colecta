@@ -3,7 +3,7 @@ import * as bcrypt from 'bcryptjs';
 import { CreateUserInput } from './dto/create-user.input';
 import { UpdateUserInput } from './dto/update-user.input';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { User } from '@prisma/client';
+import { User, UserRole } from '@prisma/client';
 import { matchesSearch } from 'src/common/search.util';
 
 @Injectable()
@@ -18,7 +18,7 @@ export class UsersService {
         email: createUserInput.email,
         name: createUserInput.name,
         password,
-        role: createUserInput.role || 'FUNCIONARIO',
+        role: createUserInput.role || UserRole.LIMPEZA,
         ...(tenantUuid ? { tenantUuid } : {}),
       },
     });

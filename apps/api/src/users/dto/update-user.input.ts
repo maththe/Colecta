@@ -1,4 +1,5 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { UserRole } from '@prisma/client';
+import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdateUserInput {
   @IsOptional()
@@ -14,4 +15,8 @@ export class UpdateUserInput {
   @IsString()
   @MinLength(6, { message: 'Senha deve ter ao menos 6 caracteres.' })
   senha?: string;
+
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
 }

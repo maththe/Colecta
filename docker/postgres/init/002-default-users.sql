@@ -8,10 +8,28 @@ WITH seed_users AS (
         'ADMIN'::"UserRole" AS "role"
     UNION ALL
     SELECT
-        'Funcionario Colecta'::text AS "name",
-        'funcionario@colecta.com'::text AS "email",
+        'Limpeza Colecta'::text AS "name",
+        'limpeza@colecta.com'::text AS "email",
         '$2b$10$fKCyCe6Jf5tccYsLaIWa9eqzmeJnIEX/gw9tljoiEA20Hwf2TJ.xy'::text AS "password",
-        'FUNCIONARIO'::"UserRole" AS "role"
+        'LIMPEZA'::"UserRole" AS "role"
+    UNION ALL
+    SELECT
+        'Manutencao Colecta'::text AS "name",
+        'manutencao@colecta.com'::text AS "email",
+        '$2b$10$fKCyCe6Jf5tccYsLaIWa9eqzmeJnIEX/gw9tljoiEA20Hwf2TJ.xy'::text AS "password",
+        'MANUTENCAO'::"UserRole" AS "role"
+    UNION ALL
+    SELECT
+        'Financeiro Colecta'::text AS "name",
+        'financeiro@colecta.com'::text AS "email",
+        '$2b$10$fKCyCe6Jf5tccYsLaIWa9eqzmeJnIEX/gw9tljoiEA20Hwf2TJ.xy'::text AS "password",
+        'FINANCEIRO'::"UserRole" AS "role"
+    UNION ALL
+    SELECT
+        'Seguranca Colecta'::text AS "name",
+        'seguranca@colecta.com'::text AS "email",
+        '$2b$10$fKCyCe6Jf5tccYsLaIWa9eqzmeJnIEX/gw9tljoiEA20Hwf2TJ.xy'::text AS "password",
+        'SEGURANCA'::"UserRole" AS "role"
 )
 INSERT INTO "users" (
     "id",

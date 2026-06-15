@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Task, TaskStatus } from '@/types';
+import type { Task, TaskStatus, UserRole } from '@/types';
 import { TASK_STATUS_LABELS } from '@/types';
 import { sortTasksForStatus } from '@/modules/tasks/lib/task';
 import { ApiError } from '@/lib/api';
@@ -43,6 +43,7 @@ export function TasksBoard({
   tasks,
   onStatusChange,
   currentUserName,
+  currentUserRole,
   focusTaskId,
   onFocusTaskConsumed,
   canManage,
@@ -53,6 +54,7 @@ export function TasksBoard({
   onStatusChange: TaskStatusChangeHandler;
   // Quando informado (funcionário), habilita o filtro "Minhas / Todas".
   currentUserName?: string | null;
+  currentUserRole?: UserRole | null;
   focusTaskId?: string | null;
   onFocusTaskConsumed?: () => void;
 } & AdminActions) {
@@ -71,7 +73,7 @@ export function TasksBoard({
   );
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [filters, setFilters] = useState<TaskBoardFilterState>(DEFAULT_TASK_FILTERS);
-  const canScope = !!currentUserName;
+  const canScope = !!currentUserName || !!currentUserRole;
   const [scope, setScope] = useState<Scope>(canScope ? 'mine' : 'all');
   const [expanded, setExpanded] = useState<Partial<Record<TaskStatus, boolean>>>({});
 
@@ -83,13 +85,17 @@ export function TasksBoard({
     onFocusTaskConsumed?.();
   }, [focusTaskId, onFocusTaskConsumed, tasks]);
 
-  // Escopo "Minhas" limita às tarefas atribuídas ao funcionário logado.
+  // Escopo "Meu time" limita às tarefas atribuídas ao funcionário ou ao tipo dele.
   const scopedTasks = useMemo(
     () =>
       canScope && scope === 'mine'
-        ? tasks.filter((task) => task.assigneeName === currentUserName)
+        ? tasks.filter(
+            (task) =>
+              (currentUserName ? task.assigneeName === currentUserName : false) ||
+              (currentUserRole ? task.assigneeRole === currentUserRole : false),
+          )
         : tasks,
-    [canScope, scope, tasks, currentUserName],
+    [canScope, scope, tasks, currentUserName, currentUserRole],
   );
 
   const grouped = useMemo(() => {
@@ -160,8 +166,8 @@ export function TasksBoard({
       {canScope && (
         <FilterChips
           options={[
-            { value: 'mine', label: 'Minhas tarefas' },
-            { value: 'all', label: 'Todas da equipe' },
+            { value: 'mine', label: 'Meu time' },
+            { value: 'all', label: 'Todas as tarefas' },
           ]}
           value={scope}
           onChange={(next) => setScope(next as Scope)}

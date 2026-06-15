@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, MapPin, Pencil, Play, Trash2 } from 'lucide-react';
-import type { Task } from '@/types';
+import { USER_ROLE_LABELS, type Task } from '@/types';
 import { TaskPriorityBadge, TaskStatusBadge } from './TaskBadges';
 import { Modal } from '@/components/Modal';
 import { formatDateTime } from '@/lib/format';
@@ -69,6 +69,14 @@ export function TaskDetailsModal({
                   <MapPin className="h-4 w-4 text-primary" />
                   <span>{task.location.name}</span>
                 </span>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </DetailRow>
+
+            <DetailRow label="Tipo de funcionário">
+              {task.assigneeRole ? (
+                USER_ROLE_LABELS[task.assigneeRole]
               ) : (
                 <span className="text-muted-foreground">—</span>
               )}

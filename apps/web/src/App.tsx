@@ -10,6 +10,7 @@ import { MapPage } from '@/modules/map/pages/MapPage';
 import { LocationsPage } from '@/modules/locations/pages/LocationsPage';
 import { TasksPage } from '@/modules/tasks/pages/TasksPage';
 import { AnalyticsPage } from '@/modules/analytics/pages/AnalyticsPage';
+import { SecurityPage } from '@/modules/security/pages/SecurityPage';
 
 function HomeRedirect() {
   const { user } = useAuth();
@@ -32,6 +33,8 @@ export function App() {
               <Route path="/bins" element={<BinsPage />} />
               <Route path="/locations" element={<LocationsPage />} />
               <Route path="/map" element={<MapPage />} />
+              <Route path="/security" element={<SecurityPage />} />
+              <Route path="/security/:locationId" element={<SecurityPage />} />
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="*" element={<HomeRedirect />} />
             </Route>

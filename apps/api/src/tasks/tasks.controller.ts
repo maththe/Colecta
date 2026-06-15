@@ -18,6 +18,7 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { getTenantUuid } from '../common/tenant.util';
 import { Roles } from '../auth/roles.decorator';
+import { EMPLOYEE_ROLES } from '../auth/role-groups';
 
 type AuthenticatedRequest = Request & {
   user?: {
@@ -48,7 +49,7 @@ export class TasksController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.FUNCIONARIO)
+  @Roles(UserRole.ADMIN, ...EMPLOYEE_ROLES)
   update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateTaskDto,

@@ -1,7 +1,9 @@
 import { useForm } from 'react-hook-form';
 import {
+  EMPLOYEE_USER_ROLES,
   TASK_PRIORITY_LABELS,
   TASK_STATUS_LABELS,
+  USER_ROLE_LABELS,
   type CreateTaskInput,
   type Location,
   type Task,
@@ -9,6 +11,7 @@ import {
   type TaskStatus,
   type TrashBin,
   type User,
+  type UserRole,
 } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +46,7 @@ type FormValues = {
   priority: TaskPriority;
   trashBinId?: string;
   locationId?: string;
+  assigneeRole: UserRole | '';
   assigneeName?: string;
   dueDate?: string;
 };
@@ -86,6 +90,7 @@ export function TaskForm({
         initial?.trashBinId || defaults?.trashBinId
           ? ''
           : initial?.locationId ?? defaults?.locationId ?? '',
+      assigneeRole: initial?.assigneeRole ?? defaults?.assigneeRole ?? '',
       assigneeName: initial?.assigneeName ?? defaults?.assigneeName ?? '',
       dueDate: toLocalInput(initial?.dueDate ?? defaults?.dueDate),
     },
@@ -93,8 +98,13 @@ export function TaskForm({
 
   const selectedTrashBinId = watch('trashBinId');
   const selectedLocationId = watch('locationId');
+  const selectedAssigneeRole = watch('assigneeRole');
+  const eligibleUsers = selectedAssigneeRole
+    ? users.filter((user) => user.role === selectedAssigneeRole)
+    : users.filter((user) => user.role !== 'ADMIN');
   const isEditing = Boolean(initial);
   const submit = handleSubmit((values) => {
+    if (!values.assigneeRole) return;
     const trimmedDesc = values.description?.trim() ?? '';
     const trimmedAssignee = values.assigneeName?.trim() ?? '';
     // When the form is bound to a map marker, the link is fixed by `target`
@@ -115,6 +125,7 @@ export function TaskForm({
       priority: values.priority,
       trashBinId: link.trashBinId,
       locationId: link.locationId,
+      assigneeRole: values.assigneeRole,
       assigneeName: trimmedAssignee ? trimmedAssignee : isEditing ? null : undefined,
       dueDate: values.dueDate
         ? new Date(values.dueDate).toISOString()
@@ -237,14 +248,36 @@ export function TaskForm({
         </>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="task-assignee-role">Tipo de funcionário</Label>
+          <select
+            id="task-assignee-role"
+            className={selectClass}
+            aria-invalid={!!errors.assigneeRole}
+            {...register('assigneeRole', {
+              required: 'Selecione o tipo de funcionário',
+              onChange: () => setValue('assigneeName', ''),
+            })}
+          >
+            <option value="">Selecione</option>
+            {EMPLOYEE_USER_ROLES.map((role) => (
+              <option key={role} value={role}>
+                {USER_ROLE_LABELS[role]}
+              </option>
+            ))}
+          </select>
+          {errors.assigneeRole && (
+            <p className="text-xs text-destructive">{errors.assigneeRole.message}</p>
+          )}
+        </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="task-assignee">Responsável</Label>
           <select id="task-assignee" className={selectClass} {...register('assigneeName')}>
             <option value="">Sem responsável</option>
-            {users.map((user) => (
+            {eligibleUsers.map((user) => (
               <option key={user.id} value={user.name}>
-                {user.name}
+                {user.name} — {USER_ROLE_LABELS[user.role]}
               </option>
             ))}
           </select>

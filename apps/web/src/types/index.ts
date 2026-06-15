@@ -4,3 +4,4 @@ export * from '@/modules/trash-bins/types';
 export * from '@/modules/tasks/types';
 export * from '@/modules/notifications/types';
 export * from '@/modules/analytics/types';
+export * from '@/modules/security/types';

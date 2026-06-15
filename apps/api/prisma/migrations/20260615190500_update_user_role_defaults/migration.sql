@@ -1,0 +1,5 @@
+ALTER TABLE "users" ALTER COLUMN "role" SET DEFAULT 'LIMPEZA';
+
+UPDATE "users"
+SET "role" = 'LIMPEZA'
+WHERE "role" = 'FUNCIONARIO';

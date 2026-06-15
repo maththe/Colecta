@@ -37,12 +37,22 @@ async function main(): Promise<void> {
     { email: 'beatriz@colecta.com', name: 'Beatriz Lima', onTimeRate: 0.96 },
   ];
 
+  const employeeRoleByEmail: Record<string, UserRole> = {
+    'carlos@colecta.com': UserRole.LIMPEZA,
+    'ana@colecta.com': UserRole.MANUTENCAO,
+    'joao@colecta.com': UserRole.SEGURANCA,
+    'maria@colecta.com': UserRole.LIMPEZA,
+    'pedro@colecta.com': UserRole.MANUTENCAO,
+    'beatriz@colecta.com': UserRole.FINANCEIRO,
+  };
+
   const employees = await Promise.all(
     employeeDefs.map(async (e) => {
+      const role = employeeRoleByEmail[e.email] ?? UserRole.LIMPEZA;
       const user = await prisma.user.upsert({
         where: { email: e.email },
-        update: { name: e.name, password: hashedFunc, role: UserRole.FUNCIONARIO, tenantUuid: TENANT },
-        create: { email: e.email, name: e.name, password: hashedFunc, role: UserRole.FUNCIONARIO, tenantUuid: TENANT },
+        update: { name: e.name, password: hashedFunc, role, tenantUuid: TENANT },
+        create: { email: e.email, name: e.name, password: hashedFunc, role, tenantUuid: TENANT },
       });
       return { ...user, onTimeRate: e.onTimeRate };
     }),
@@ -164,6 +174,19 @@ async function main(): Promise<void> {
     'Substituir sacola coletora',
   ];
 
+  const taskRoleByTitleIndex: UserRole[] = [
+    UserRole.LIMPEZA,
+    UserRole.MANUTENCAO,
+    UserRole.MANUTENCAO,
+    UserRole.MANUTENCAO,
+    UserRole.MANUTENCAO,
+    UserRole.LIMPEZA,
+    UserRole.MANUTENCAO,
+    UserRole.MANUTENCAO,
+    UserRole.LIMPEZA,
+    UserRole.LIMPEZA,
+  ];
+
   const priorities = [
     TaskPriority.low,
     TaskPriority.medium,
@@ -181,6 +204,7 @@ async function main(): Promise<void> {
     trashBinId: string;
     locationId: string;
     startedById: string;
+    assigneeRole: UserRole;
     assigneeName: string;
     dueDate: Date;
     startedAt: Date;
@@ -204,7 +228,10 @@ async function main(): Promise<void> {
       const resolutionMinutes = 30 + (counter % 24) * 30;
       const completedAt = new Date(startedAt.getTime() + resolutionMinutes * 60_000);
 
-      const emp = employees[counter % employees.length];
+      const taskTitleIndex = counter % taskTitles.length;
+      const assigneeRole = taskRoleByTitleIndex[taskTitleIndex] ?? UserRole.LIMPEZA;
+      const roleEmployees = employees.filter((employee) => employee.role === assigneeRole);
+      const emp = roleEmployees[counter % roleEmployees.length] ?? employees[counter % employees.length];
       const isOnTime = (counter % 100) < Math.round(emp.onTimeRate * 100);
       const dueDateOffset = isOnTime
         ? (1 + (counter % 3)) * HOUR_MS
@@ -214,7 +241,7 @@ async function main(): Promise<void> {
       const binIdx = counter % bins.length;
       const bin = bins[binIdx];
       const locIdx = binDefs[binIdx].locIdx;
-      const title = `${taskTitles[counter % taskTitles.length]} – ${binDefs[binIdx].code}`;
+      const title = `${taskTitles[taskTitleIndex]} – ${binDefs[binIdx].code}`;
 
       historyRows.push({
         tenantUuid: TENANT,
@@ -225,6 +252,7 @@ async function main(): Promise<void> {
         trashBinId: bin.id,
         locationId: locations[locIdx].id,
         startedById: emp.id,
+        assigneeRole,
         assigneeName: emp.name,
         dueDate,
         startedAt,
@@ -249,6 +277,7 @@ async function main(): Promise<void> {
         priority: TaskPriority.urgent,
         trashBinId: bins[2].id,
         locationId: locations[1].id,
+        assigneeRole: UserRole.LIMPEZA,
         assigneeName: employees[0].name,
         dueDate: new Date(now.getTime() + 2 * HOUR_MS),
       },
@@ -260,9 +289,10 @@ async function main(): Promise<void> {
         priority: TaskPriority.high,
         trashBinId: bins[4].id,
         locationId: locations[2].id,
-        startedById: employees[2].id,
+        startedById: employees[1].id,
         startedAt: new Date(now.getTime() - 2 * HOUR_MS),
-        assigneeName: employees[2].name,
+        assigneeRole: UserRole.MANUTENCAO,
+        assigneeName: employees[1].name,
         dueDate: new Date(now.getTime() + 4 * HOUR_MS),
       },
       {
@@ -273,6 +303,7 @@ async function main(): Promise<void> {
         priority: TaskPriority.urgent,
         trashBinId: bins[7].id,
         locationId: locations[4].id,
+        assigneeRole: UserRole.MANUTENCAO,
         assigneeName: employees[1].name,
         dueDate: new Date(now.getTime() + HOUR_MS),
       },
@@ -286,6 +317,7 @@ async function main(): Promise<void> {
         locationId: locations[3].id,
         startedById: employees[4].id,
         startedAt: new Date(now.getTime() - 5 * HOUR_MS),
+        assigneeRole: UserRole.MANUTENCAO,
         assigneeName: employees[4].name,
         dueDate: new Date(now.getTime() + 3 * DAY_MS),
       },
@@ -297,6 +329,7 @@ async function main(): Promise<void> {
         priority: TaskPriority.high,
         trashBinId: bins[10].id,
         locationId: locations[6].id,
+        assigneeRole: UserRole.LIMPEZA,
         assigneeName: employees[3].name,
         dueDate: daysAgo(1),
       },
@@ -306,14 +339,15 @@ async function main(): Promise<void> {
         description: 'Revisão quinzenal de todas as lixeiras do parque.',
         status: TaskStatus.pending,
         priority: TaskPriority.low,
+        assigneeRole: UserRole.MANUTENCAO,
         dueDate: new Date(now.getTime() + 2 * DAY_MS),
       },
     ],
   });
 
-  console.log(`Seed concluído: ${bins.length} lixeiras, ${employees.length} funcionários, ${historyRows.length} tarefas históricas.`);
+  console.log(`Seed concluído: ${bins.length} lixeiras, ${employees.length} usuários operacionais, ${historyRows.length} tarefas históricas.`);
   console.log('Admin: admin@colecta.com / admin123');
-  console.log('Funcionários: carlos@colecta.com, ana@colecta.com, joao@colecta.com, maria@colecta.com, pedro@colecta.com, beatriz@colecta.com — senha: funcionario123');
+  console.log('Usuários operacionais: carlos@colecta.com, ana@colecta.com, joao@colecta.com, maria@colecta.com, pedro@colecta.com, beatriz@colecta.com — senha: funcionario123');
 }
 
 main()

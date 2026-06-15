@@ -1,13 +1,15 @@
 import { useMemo } from 'react';
-import type { Task, TaskPriority } from '@/types';
-import { TASK_PRIORITY_LABELS } from '@/types';
+import type { Task, TaskPriority, UserRole } from '@/types';
+import { EMPLOYEE_USER_ROLES, TASK_PRIORITY_LABELS, USER_ROLE_LABELS } from '@/types';
 import { matchesDateFilter, type TaskDateFilter } from '@/modules/tasks/lib/task';
 import { FilterChips } from '@/components/ui/filter-chips';
 
 export type PriorityFilter = TaskPriority | 'all';
+export type RoleFilter = UserRole | 'all';
 
 export interface TaskBoardFilterState {
   priority: PriorityFilter;
+  assigneeRole: RoleFilter;
   date: TaskDateFilter;
   assignee: string;
 }
@@ -17,6 +19,7 @@ export const UNASSIGNED = '__unassigned__';
 
 export const DEFAULT_TASK_FILTERS: TaskBoardFilterState = {
   priority: 'all',
+  assigneeRole: 'all',
   date: 'all',
   assignee: ALL_ASSIGNEES,
 };
@@ -37,6 +40,11 @@ const DATE_FILTERS: { value: TaskDateFilter; label: string }[] = [
   { value: 'no_date', label: 'Sem prazo' },
 ];
 
+const ROLE_FILTERS: { value: RoleFilter; label: string }[] = [
+  { value: 'all', label: 'Todos' },
+  ...EMPLOYEE_USER_ROLES.map((role) => ({ value: role, label: USER_ROLE_LABELS[role] })),
+];
+
 const selectClass =
   'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50';
 
@@ -45,13 +53,15 @@ const selectClass =
 export function taskMatchesFilters(task: Task, filters: TaskBoardFilterState): boolean {
   const matchesDate = matchesDateFilter(task, filters.date);
   const matchesPriority = filters.priority === 'all' || task.priority === filters.priority;
+  const matchesRole =
+    filters.assigneeRole === 'all' || task.assigneeRole === filters.assigneeRole;
   const matchesAssignee =
     filters.assignee === ALL_ASSIGNEES ||
     (filters.assignee === UNASSIGNED
       ? !task.assigneeName
       : task.assigneeName === filters.assignee);
 
-  return matchesDate && matchesPriority && matchesAssignee;
+  return matchesDate && matchesPriority && matchesRole && matchesAssignee;
 }
 
 export function TaskBoardFilters({
@@ -68,13 +78,15 @@ export function TaskBoardFilters({
   const assigneeOptions = useMemo(() => {
     const names = new Set<string>();
     tasks.forEach((task) => {
+      if (value.assigneeRole !== 'all' && task.assigneeRole !== value.assigneeRole) return;
       if (task.assigneeName) names.add(task.assigneeName);
     });
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [tasks]);
+  }, [tasks, value.assigneeRole]);
 
   const refineActive =
     value.priority !== 'all' ||
+    value.assigneeRole !== 'all' ||
     value.date !== 'all' ||
     (showAssigneeFilter && value.assignee !== ALL_ASSIGNEES);
 
@@ -107,6 +119,16 @@ export function TaskBoardFilters({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
           <div className="flex flex-col gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Tipo
+            </span>
+            <FilterChips
+              options={ROLE_FILTERS}
+              value={value.assigneeRole}
+              onChange={(assigneeRole) => onChange({ ...value, assigneeRole, assignee: ALL_ASSIGNEES })}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Prioridade
             </span>
             <FilterChips
@@ -133,6 +155,7 @@ export function TaskBoardFilters({
                 onChange({
                   ...value,
                   priority: 'all',
+                  assigneeRole: 'all',
                   date: 'all',
                   assignee: ALL_ASSIGNEES,
                 })

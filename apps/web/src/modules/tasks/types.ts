@@ -1,3 +1,5 @@
+import type { UserRole } from '@/modules/auth/types';
+
 export type TaskStatus = 'pending' | 'in_progress' | 'done' | 'cancelled';
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -12,6 +14,7 @@ export interface Task {
   trashBin: { id: string; name: string; code: string } | null;
   locationId: string | null;
   location: { id: string; name: string; latitude: number; longitude: number } | null;
+  assigneeRole: UserRole;
   assigneeName: string | null;
   dueDate: string | null;
   startedAt: string | null;
@@ -28,6 +31,7 @@ export interface CreateTaskInput {
   priority?: TaskPriority;
   trashBinId?: string | null;
   locationId?: string | null;
+  assigneeRole: UserRole;
   assigneeName?: string | null;
   dueDate?: string | null;
 }

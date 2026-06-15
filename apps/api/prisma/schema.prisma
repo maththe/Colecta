@@ -36,6 +36,11 @@ enum TaskKind {
 
 enum UserRole {
   ADMIN
+  MANUTENCAO
+  LIMPEZA
+  FINANCEIRO
+  SEGURANCA
+  /// Legado: mantido para bancos antigos que ainda tenham usuários genéricos.
   FUNCIONARIO
 }
 
@@ -53,7 +58,7 @@ model User {
   email      String   @unique
   password   String
   tenantUuid String   @default(uuid())
-  role       UserRole @default(FUNCIONARIO)
+  role       UserRole @default(LIMPEZA)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -148,6 +153,7 @@ model Task {
   trashBin     TrashBin?    @relation(fields: [trashBinId], references: [id], onDelete: SetNull)
   locationId   String?      @db.Uuid
   location     Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  assigneeRole UserRole
   assigneeName String?
   dueDate      DateTime?
   startedAt    DateTime?
@@ -163,6 +169,7 @@ model Task {
   @@index([status])
   @@index([trashBinId])
   @@index([locationId])
+  @@index([assigneeRole])
   @@index([tenantUuid, trashBinId, kind, status])
   @@index([tenantUuid, completedAt])
   @@map("tasks")

@@ -26,6 +26,7 @@ import {
 } from '../automation/rules';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailerService } from '../mailer/mailer.service';
+import { isEmployeeRole, isTaskAssigneeRole } from '../auth/role-groups';
 
 type TaskWithBin = Prisma.TaskGetPayload<{
   include: {
@@ -69,6 +70,7 @@ export class TasksService {
   async create(dto: CreateTaskDto, tenantUuid: string): Promise<TaskWithBin> {
     if (dto.trashBinId) await this.assertTrashBinExists(dto.trashBinId, tenantUuid);
     if (dto.locationId) await this.assertLocationExists(dto.locationId, tenantUuid);
+    this.assertAssigneeRole(dto.assigneeRole);
 
     const data: Prisma.TaskCreateInput = {
       tenantUuid,
@@ -76,6 +78,7 @@ export class TasksService {
       description: dto.description ?? null,
       status: dto.status,
       priority: dto.priority,
+      assigneeRole: dto.assigneeRole,
       assigneeName: dto.assigneeName ?? null,
       dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
       trashBin: dto.trashBinId ? { connect: { id: dto.trashBinId } } : undefined,
@@ -105,6 +108,10 @@ export class TasksService {
     if (dto.description !== undefined) data.description = dto.description ?? null;
     if (dto.status !== undefined) data.status = dto.status;
     if (dto.priority !== undefined) data.priority = dto.priority;
+    if (dto.assigneeRole !== undefined) {
+      this.assertAssigneeRole(dto.assigneeRole);
+      data.assigneeRole = dto.assigneeRole;
+    }
     if (dto.assigneeName !== undefined) data.assigneeName = dto.assigneeName ?? null;
     if (dto.dueDate !== undefined) data.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
     if (dto.trashBinId !== undefined) {
@@ -183,6 +190,7 @@ export class TasksService {
           priority,
           kind: TaskKind.auto,
           issues,
+          assigneeRole: UserRole.LIMPEZA,
           trashBin: { connect: { id: bin.id } },
           dueDate: computeDueDate(issues, now),
         },
@@ -202,6 +210,7 @@ export class TasksService {
         description: composeDescription(bin.code, issues),
         priority: composePriority(issues),
         issues,
+        assigneeRole: UserRole.LIMPEZA,
       },
       include: taskInclude,
     });
@@ -210,7 +219,17 @@ export class TasksService {
   /** Notifica o funcionário responsável quando uma tarefa urgente é criada. */
   private async notifyUrgentAssignee(task: TaskWithBin): Promise<void> {
     if (task.priority !== TaskPriority.urgent) return;
-    if (!task.assigneeName) return;
+    if (!task.assigneeName) {
+      if (!task.assigneeRole) return;
+      await this.notifications.emitToRole(task.assigneeRole, {
+        tenantUuid: task.tenantUuid,
+        kind: NotificationKind.task_urgent,
+        title: `Tarefa urgente: ${task.title}`,
+        body: task.description ?? null,
+        taskId: task.id,
+      });
+      return;
+    }
     const targets = await this.notifications.findUsersByAssigneeName(
       task.assigneeName,
       task.tenantUuid,
@@ -259,6 +278,12 @@ export class TasksService {
     if (!exists) throw new BadRequestException(`Location ${locationId} not found`);
   }
 
+  private assertAssigneeRole(role: UserRole | undefined): void {
+    if (!isTaskAssigneeRole(role)) {
+      throw new BadRequestException('Selecione um tipo de funcionário válido para a tarefa.');
+    }
+  }
+
   private assertCanUpdate(
     actorRole: UserRole | undefined,
     currentStatus: TaskStatus,
@@ -266,7 +291,7 @@ export class TasksService {
   ): void {
     if (actorRole === UserRole.ADMIN) return;
 
-    if (actorRole !== UserRole.FUNCIONARIO) {
+    if (!isEmployeeRole(actorRole)) {
       throw new ForbiddenException('Você não tem permissão para atualizar tarefas.');
     }
 

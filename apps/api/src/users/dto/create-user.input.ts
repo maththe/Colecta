@@ -1,5 +1,5 @@
 import { UserRole } from '@prisma/client';
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateUserInput {
   @IsEmail({}, { message: 'E-mail inválido.' })
@@ -13,6 +13,7 @@ export class CreateUserInput {
   @MinLength(6, { message: 'Senha deve ter ao menos 6 caracteres.' })
   senha!: string;
 
-  @IsString()
+  @IsOptional()
+  @IsEnum(UserRole)
   role?: UserRole;
 }

@@ -1,0 +1,43 @@
+export type CameraStatus = 'online' | 'offline' | 'maintenance';
+
+export type CameraTarget =
+  | {
+      kind: 'location';
+      id: string;
+      name: string;
+    }
+  | {
+      kind: 'trash_bin';
+      id: string;
+      name: string;
+      code: string;
+    };
+
+export interface SecurityCamera {
+  id: string;
+  code: string;
+  name: string;
+  locationId: string;
+  locationName: string;
+  target: CameraTarget;
+  status: CameraStatus;
+  model: string;
+  ipAddress: string;
+  resolution: string;
+  fps: number;
+  lastSeenAt: string | null;
+  imageUrl: string;
+  notes?: string;
+}
+
+export interface SecurityLocation {
+  id: string;
+  name: string;
+  cameras: SecurityCamera[];
+}
+
+export const CAMERA_STATUS_LABELS: Record<CameraStatus, string> = {
+  online: 'Online',
+  offline: 'Offline',
+  maintenance: 'Manutenção',
+};

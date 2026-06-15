@@ -13,6 +13,7 @@ import {
   PanelLeftOpen,
   BarChart3,
   Menu,
+  ShieldCheck,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -20,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/modules/auth/context/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { NotificationsBell } from '@/modules/notifications/components/NotificationsBell';
+import { USER_ROLE_LABELS } from '@/types';
 
 interface NavItem {
   to: string;
@@ -32,6 +34,7 @@ const operationSection = {
   items: [
     { to: '/map', label: 'Mapa', Icon: Map },
     { to: '/bins', label: 'Lixeiras', Icon: Trash2 },
+    { to: '/security', label: 'Segurança', Icon: ShieldCheck },
     { to: '/tasks', label: 'Tarefas', Icon: CheckSquare },
   ],
 } satisfies { title?: string; items: NavItem[] };
@@ -78,6 +81,7 @@ export function MainLayout() {
 
   const isDark = theme === 'dark';
   const navCollapsed = collapsed && !mobileOpen;
+  const roleLabel = user ? USER_ROLE_LABELS[user.role] : null;
 
   const initials = user?.name
     ?.split(' ')
@@ -209,7 +213,9 @@ export function MainLayout() {
               {!navCollapsed && (
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{user.name}</div>
-                  <div className="truncate text-xs text-muted-foreground">{user.email}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {roleLabel} · {user.email}
+                  </div>
                 </div>
               )}
             </div>

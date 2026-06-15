@@ -8,7 +8,7 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
-import type { Task, TaskStatus } from '@/types';
+import { USER_ROLE_LABELS, type Task, type TaskStatus } from '@/types';
 import { TaskPriorityBadge } from './TaskBadges';
 import { formatDateTime } from '@/lib/format';
 import { getNextStatusAction, isOverdue } from '@/modules/tasks/lib/task';
@@ -73,12 +73,20 @@ export function TaskCard({
             <span className="truncate">{task.location.name}</span>
           </span>
         ) : null}
-        {task.assigneeName && (
+        {task.assigneeRole ? (
+          <span className="flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
+              {USER_ROLE_LABELS[task.assigneeRole]}
+              {task.assigneeName ? ` - ${task.assigneeName}` : ''}
+            </span>
+          </span>
+        ) : task.assigneeName ? (
           <span className="flex items-center gap-1.5">
             <Users className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{task.assigneeName}</span>
           </span>
-        )}
+        ) : null}
         <span className={cn('flex items-center gap-1.5', overdue && 'font-medium text-destructive')}>
           {overdue ? (
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
