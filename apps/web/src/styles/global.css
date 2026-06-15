@@ -132,6 +132,12 @@ select optgroup {
   color-scheme: dark;
 }
 
+/* Keep Leaflet's internal panes from escaping above app-level floating UI. */
+.leaflet-container {
+  isolation: isolate;
+  z-index: 0;
+}
+
 /* --- Leaflet popups follow the active theme --- */
 .dark .leaflet-popup-content-wrapper,
 .dark .leaflet-popup-tip {

@@ -48,7 +48,7 @@ export function MainLayout() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col gap-6 border-r border-border bg-sidebar px-4 py-6">
+      <aside className="sticky top-0 z-30 flex h-screen w-60 shrink-0 flex-col gap-6 border-r border-border bg-sidebar px-4 py-6">
         <div className="flex items-center gap-3 px-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
             C
@@ -115,7 +115,7 @@ export function MainLayout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-x-hidden px-8 py-8">
+      <main className="relative z-0 flex-1 overflow-x-hidden px-8 py-8">
         <Outlet />
       </main>
     </div>
