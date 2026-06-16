@@ -1,4 +1,4 @@
-import type { CreateTaskInput, Task } from '@/types';
+import type { CreateSecurityOccurrenceInput, CreateTaskInput, Task } from '@/types';
 import { request } from '@/lib/api/client';
 
 export const tasksApi = {
@@ -6,6 +6,11 @@ export const tasksApi = {
   get: (id: string) => request<Task>(`/tasks/${id}`),
   create: (data: CreateTaskInput) =>
     request<Task>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
+  createSecurityOccurrence: (data: CreateSecurityOccurrenceInput) =>
+    request<Task>('/tasks/security-occurrences', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   update: (id: string, data: Partial<CreateTaskInput>) =>
     request<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   remove: (id: string) =>

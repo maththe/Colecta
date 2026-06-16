@@ -15,6 +15,7 @@ import { UserRole } from '@prisma/client';
 import type { Request } from 'express';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { CreateSecurityOccurrenceDto } from './dto/create-security-occurrence.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { getTenantUuid } from '../common/tenant.util';
 import { Roles } from '../auth/roles.decorator';
@@ -46,6 +47,16 @@ export class TasksController {
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateTaskDto, @Req() req: Request) {
     return this.service.create(dto, getTenantUuid(req));
+  }
+
+  @Post('security-occurrences')
+  @Roles(UserRole.ADMIN, ...EMPLOYEE_ROLES)
+  @HttpCode(HttpStatus.CREATED)
+  createSecurityOccurrence(
+    @Body() dto: CreateSecurityOccurrenceDto,
+    @Req() req: Request,
+  ) {
+    return this.service.createSecurityOccurrence(dto, getTenantUuid(req));
   }
 
   @Patch(':id')

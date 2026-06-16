@@ -1,13 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Activity,
+  AlertTriangle,
   Camera,
+  CheckCircle2,
   Clock,
   Eye,
   MapPin,
   MonitorPlay,
   Search,
+  Send,
   ShieldCheck,
   Trash2,
   Video,
@@ -15,6 +18,14 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { api, ApiError } from '@/lib/api';
+import {
+  TASK_PRIORITY_LABELS,
+  type CreateSecurityOccurrenceInput,
+  type Location as ColectaLocation,
+  type TaskPriority,
+  type TrashBin,
+} from '@/types';
 import { getSecurityLocations } from '../data/security.mock';
 import {
   CAMERA_STATUS_LABELS,
@@ -43,6 +54,8 @@ import {
 } from '@/components/ui/dialog';
 import { FilterChips } from '@/components/ui/filter-chips';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 type StatusFilter = CameraStatus | 'all';
 type TargetFilter = SecurityCamera['target']['kind'] | 'all';
@@ -71,6 +84,103 @@ const TARGET_FILTERS: { value: TargetFilter; label: string }[] = [
   { value: 'location', label: 'Posições' },
   { value: 'trash_bin', label: 'Lixeiras' },
 ];
+
+interface OccurrenceLink {
+  trashBinId: string | null;
+  locationId: string | null;
+  label: string;
+  matched: boolean;
+}
+
+function normalizeMatchText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function matchScore(source: string, target: string): number {
+  const a = normalizeMatchText(source);
+  const b = normalizeMatchText(target);
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (a.includes(b) || b.includes(a)) return 0.8;
+
+  const sourceTokens = new Set(a.split(/\s+/).filter((token) => token.length > 2));
+  const targetTokens = b.split(/\s+/).filter((token) => token.length > 2);
+  if (sourceTokens.size === 0 || targetTokens.length === 0) return 0;
+  const common = targetTokens.filter((token) => sourceTokens.has(token)).length;
+  return common / Math.max(sourceTokens.size, targetTokens.length);
+}
+
+function findLinkedTrashBin(camera: SecurityCamera, bins: TrashBin[]): TrashBin | null {
+  if (camera.target.kind !== 'trash_bin') return null;
+  const code = normalizeMatchText(camera.target.code);
+  return bins.find((bin) => normalizeMatchText(bin.code) === code) ?? null;
+}
+
+function findLinkedLocation(
+  camera: SecurityCamera,
+  locations: ColectaLocation[],
+  linkedBin?: TrashBin | null,
+): ColectaLocation | null {
+  if (linkedBin) {
+    return (
+      linkedBin.location ??
+      locations.find((location) => location.id === linkedBin.locationId) ??
+      null
+    );
+  }
+
+  const candidates = [
+    camera.locationName,
+    camera.target.kind === 'location' ? camera.target.name : '',
+  ].filter(Boolean);
+
+  let best: { location: ColectaLocation; score: number } | null = null;
+  for (const location of locations) {
+    const score = Math.max(
+      ...candidates.map((candidate) => matchScore(location.name, candidate)),
+    );
+    if (!best || score > best.score) best = { location, score };
+  }
+
+  return best && best.score >= 0.5 ? best.location : null;
+}
+
+function occurrenceLink(
+  camera: SecurityCamera,
+  locations: ColectaLocation[],
+  bins: TrashBin[],
+): OccurrenceLink {
+  const linkedBin = findLinkedTrashBin(camera, bins);
+  if (linkedBin) {
+    return {
+      trashBinId: linkedBin.id,
+      locationId: null,
+      label: `${linkedBin.code} - ${linkedBin.name}`,
+      matched: true,
+    };
+  }
+
+  const linkedLocation = findLinkedLocation(camera, locations);
+  if (linkedLocation) {
+    return {
+      trashBinId: null,
+      locationId: linkedLocation.id,
+      label: linkedLocation.name,
+      matched: true,
+    };
+  }
+
+  return {
+    trashBinId: null,
+    locationId: null,
+    label: camera.locationName,
+    matched: false,
+  };
+}
 
 function statusSummary(cameras: SecurityCamera[]) {
   return {
@@ -290,9 +400,11 @@ function LocationList({
 function CameraCard({
   camera,
   onPreview,
+  onReport,
 }: {
   camera: SecurityCamera;
   onPreview: (camera: SecurityCamera) => void;
+  onReport: (camera: SecurityCamera) => void;
 }) {
   return (
     <Card className="h-full">
@@ -325,7 +437,11 @@ function CameraCard({
           </p>
         </CardContent>
       )}
-      <CardFooter className="justify-end">
+      <CardFooter className="flex-wrap justify-end gap-2">
+        <Button type="button" variant="outline" onClick={() => onReport(camera)}>
+          <AlertTriangle className="h-4 w-4" />
+          Relatar Ocorrencia
+        </Button>
         <Button type="button" onClick={() => onPreview(camera)}>
           <Eye className="h-4 w-4" />
           Visualizar
@@ -338,9 +454,11 @@ function CameraCard({
 function CameraPreviewDialog({
   camera,
   onClose,
+  onReport,
 }: {
   camera: SecurityCamera | null;
   onClose: () => void;
+  onReport: (camera: SecurityCamera) => void;
 }) {
   return (
     <Dialog open={!!camera} onOpenChange={(open) => !open && onClose()}>
@@ -387,12 +505,191 @@ function CameraPreviewDialog({
                     </div>
                   </div>
                 </div>
-                <Button type="button" variant="secondary" onClick={onClose} className="mt-auto">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => onReport(camera)}
+                  className="mt-auto"
+                >
+                  <AlertTriangle className="h-4 w-4" />
+                  Relatar Ocorrencia
+                </Button>
+                <Button type="button" variant="secondary" onClick={onClose}>
                   Fechar visualização
                 </Button>
               </aside>
             </div>
           </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function defaultOccurrenceTitle(camera: SecurityCamera): string {
+  if (camera.target.kind === 'trash_bin') {
+    return `Ocorrencia - ${camera.target.code}`;
+  }
+  return `Ocorrencia - ${camera.locationName}`;
+}
+
+function CameraOccurrenceDialog({
+  camera,
+  link,
+  referenceError,
+  submitting,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  camera: SecurityCamera | null;
+  link: OccurrenceLink | null;
+  referenceError: string | null;
+  submitting: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSubmit: (values: CreateSecurityOccurrenceInput) => void | Promise<void>;
+}) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<TaskPriority>('high');
+  const [dueDate, setDueDate] = useState('');
+
+  useEffect(() => {
+    if (!camera) return;
+    setTitle(defaultOccurrenceTitle(camera));
+    setDescription('');
+    setPriority('high');
+    setDueDate('');
+  }, [camera]);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!camera || !title.trim()) return;
+    void onSubmit({
+      title: title.trim(),
+      description: description.trim() || undefined,
+      priority,
+      trashBinId: link?.trashBinId ?? null,
+      locationId: link?.locationId ?? null,
+      cameraCode: camera.code,
+      cameraName: camera.name,
+      locationName: camera.locationName,
+      targetLabel: targetText(camera),
+      dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+    });
+  }
+
+  return (
+    <Dialog open={!!camera} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-xl">
+        {camera && (
+          <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+            <DialogHeader>
+              <DialogTitle>Relatar Ocorrencia</DialogTitle>
+              <DialogDescription>
+                A tarefa sera criada para a equipe de seguranca.
+              </DialogDescription>
+            </DialogHeader>
+
+            {error && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+
+            {referenceError && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-200">
+                {referenceError}
+              </div>
+            )}
+
+            <div className="grid gap-3 rounded-lg border border-border bg-muted/30 p-3 text-xs sm:grid-cols-2">
+              <div>
+                <div className="font-medium text-foreground">Camera</div>
+                <div className="mt-1 text-muted-foreground">
+                  <span className="font-mono">{camera.code}</span> - {camera.name}
+                </div>
+              </div>
+              <div>
+                <div className="font-medium text-foreground">Local</div>
+                <div className="mt-1 text-muted-foreground">{camera.locationName}</div>
+              </div>
+              <div className="sm:col-span-2">
+                <div className="font-medium text-foreground">Vinculo da tarefa</div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground">
+                  <span>{link?.label ?? camera.locationName}</span>
+                  {link?.matched ? (
+                    <Badge variant="success">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Vinculado
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">Somente descricao</Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="occurrence-title">Titulo</Label>
+              <Input
+                id="occurrence-title"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                maxLength={180}
+                required
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="occurrence-priority">Prioridade</Label>
+                <select
+                  id="occurrence-priority"
+                  className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  value={priority}
+                  onChange={(event) => setPriority(event.target.value as TaskPriority)}
+                >
+                  {(['medium', 'high', 'urgent'] satisfies TaskPriority[]).map((value) => (
+                    <option key={value} value={value}>
+                      {TASK_PRIORITY_LABELS[value]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="occurrence-due">Prazo</Label>
+                <Input
+                  id="occurrence-due"
+                  type="datetime-local"
+                  value={dueDate}
+                  onChange={(event) => setDueDate(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="occurrence-description">Descricao</Label>
+              <Textarea
+                id="occurrence-description"
+                rows={4}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="Descreva o que foi observado na camera"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-border pt-4">
+              <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={submitting || !title.trim()}>
+                <Send className="h-4 w-4" />
+                {submitting ? 'Criando...' : 'Criar tarefa'}
+              </Button>
+            </div>
+          </form>
         )}
       </DialogContent>
     </Dialog>
@@ -406,6 +703,12 @@ export function SecurityPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [targetFilter, setTargetFilter] = useState<TargetFilter>('all');
   const [preview, setPreview] = useState<SecurityCamera | null>(null);
+  const [reportCamera, setReportCamera] = useState<SecurityCamera | null>(null);
+  const [locations, setLocations] = useState<ColectaLocation[]>([]);
+  const [bins, setBins] = useState<TrashBin[]>([]);
+  const [referenceError, setReferenceError] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reporting, setReporting] = useState(false);
 
   const allLocations = useMemo(() => getSecurityLocations(), []);
   const sortedLocations = useMemo(
@@ -438,9 +741,70 @@ export function SecurityPage() {
     cameraMatches(camera, query, statusFilter, targetFilter),
   );
   const selectedSummary = statusSummary(selectedCameras);
+  const reportLink = reportCamera ? occurrenceLink(reportCamera, locations, bins) : null;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadReferences() {
+      setReferenceError(null);
+      try {
+        const [locationData, binData] = await Promise.all([
+          api.locations.list(),
+          api.trashBins.list(),
+        ]);
+        if (cancelled) return;
+        setLocations(locationData);
+        setBins(binData);
+      } catch {
+        if (cancelled) return;
+        setReferenceError(
+          'Nao foi possivel carregar os vinculos reais. A tarefa sera criada com os dados da camera.',
+        );
+      }
+    }
+
+    void loadReferences();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function selectLocation(id: string) {
     navigate(`/security/${id}`);
+  }
+
+  function openReport(camera: SecurityCamera) {
+    setReportCamera(camera);
+    setReportError(null);
+  }
+
+  function openReportFromPreview(camera: SecurityCamera) {
+    setPreview(null);
+    openReport(camera);
+  }
+
+  function closeReport() {
+    if (reporting) return;
+    setReportCamera(null);
+    setReportError(null);
+  }
+
+  async function handleReportSubmit(values: CreateSecurityOccurrenceInput) {
+    setReporting(true);
+    setReportError(null);
+    let createdTaskId: string | null = null;
+    try {
+      const created = await api.tasks.createSecurityOccurrence(values);
+      createdTaskId = created.id;
+      setReportCamera(null);
+    } catch (err: unknown) {
+      setReportError(err instanceof ApiError ? err.message : 'Erro ao criar ocorrencia');
+    } finally {
+      setReporting(false);
+    }
+    if (createdTaskId) navigate(`/tasks?task=${createdTaskId}`);
   }
 
   return (
@@ -555,14 +919,32 @@ export function SecurityPage() {
           ) : (
             <section className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
               {visibleCameras.map((camera) => (
-                <CameraCard key={camera.id} camera={camera} onPreview={setPreview} />
+                <CameraCard
+                  key={camera.id}
+                  camera={camera}
+                  onPreview={setPreview}
+                  onReport={openReport}
+                />
               ))}
             </section>
           )}
         </div>
       </section>
 
-      <CameraPreviewDialog camera={preview} onClose={() => setPreview(null)} />
+      <CameraPreviewDialog
+        camera={preview}
+        onClose={() => setPreview(null)}
+        onReport={openReportFromPreview}
+      />
+      <CameraOccurrenceDialog
+        camera={reportCamera}
+        link={reportLink}
+        referenceError={referenceError}
+        submitting={reporting}
+        error={reportError}
+        onClose={closeReport}
+        onSubmit={handleReportSubmit}
+      />
     </div>
   );
 }

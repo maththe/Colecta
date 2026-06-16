@@ -15,6 +15,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { CreateSecurityOccurrenceDto } from './dto/create-security-occurrence.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import {
   composeDescription,
@@ -87,6 +88,34 @@ export class TasksService {
 
     const created = await this.prisma.task.create({ data, include: taskInclude });
     await this.notifyUrgentAssignee(created);
+    return created;
+  }
+
+  async createSecurityOccurrence(
+    dto: CreateSecurityOccurrenceDto,
+    tenantUuid: string,
+  ): Promise<TaskWithBin> {
+    if (dto.trashBinId) await this.assertTrashBinExists(dto.trashBinId, tenantUuid);
+    if (dto.locationId) await this.assertLocationExists(dto.locationId, tenantUuid);
+
+    const created = await this.prisma.task.create({
+      data: {
+        tenantUuid,
+        title: dto.title,
+        description: this.composeSecurityOccurrenceDescription(dto),
+        status: TaskStatus.pending,
+        priority: dto.priority ?? TaskPriority.high,
+        kind: TaskKind.manual,
+        assigneeRole: UserRole.SEGURANCA,
+        assigneeName: null,
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+        trashBin: dto.trashBinId ? { connect: { id: dto.trashBinId } } : undefined,
+        location: dto.locationId ? { connect: { id: dto.locationId } } : undefined,
+      },
+      include: taskInclude,
+    });
+
+    await this.notifySecurityOfOccurrence(created);
     return created;
   }
 
@@ -262,6 +291,16 @@ export class TasksService {
     });
   }
 
+  private async notifySecurityOfOccurrence(task: TaskWithBin): Promise<void> {
+    await this.notifications.emitToRole(UserRole.SEGURANCA, {
+      tenantUuid: task.tenantUuid,
+      kind: NotificationKind.task_assigned,
+      title: `Ocorrencia relatada: ${task.title}`,
+      body: task.description ?? null,
+      taskId: task.id,
+    });
+  }
+
   private async assertTrashBinExists(trashBinId: string, tenantUuid: string): Promise<void> {
     const exists = await this.prisma.trashBin.findFirst({
       where: { id: trashBinId, tenantUuid },
@@ -276,6 +315,21 @@ export class TasksService {
       select: { id: true },
     });
     if (!exists) throw new BadRequestException(`Location ${locationId} not found`);
+  }
+
+  private composeSecurityOccurrenceDescription(
+    dto: CreateSecurityOccurrenceDto,
+  ): string {
+    const details = [
+      `Camera: ${dto.cameraCode} - ${dto.cameraName}`,
+      `Local informado: ${dto.locationName}`,
+      dto.targetLabel ? `Vinculo da camera: ${dto.targetLabel}` : null,
+    ].filter((line): line is string => !!line);
+
+    const userDescription = dto.description?.trim();
+    return [userDescription || null, details.join('\n')]
+      .filter((section): section is string => !!section)
+      .join('\n\n');
   }
 
   private assertAssigneeRole(role: UserRole | undefined): void {

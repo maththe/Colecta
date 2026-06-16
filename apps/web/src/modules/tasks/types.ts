@@ -36,6 +36,19 @@ export interface CreateTaskInput {
   dueDate?: string | null;
 }
 
+export interface CreateSecurityOccurrenceInput {
+  title: string;
+  description?: string | null;
+  priority?: TaskPriority;
+  trashBinId?: string | null;
+  locationId?: string | null;
+  cameraCode: string;
+  cameraName: string;
+  locationName: string;
+  targetLabel?: string | null;
+  dueDate?: string | null;
+}
+
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   pending: 'Pendente',
   in_progress: 'Em andamento',
