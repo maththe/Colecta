@@ -37,7 +37,7 @@ const operationSection = {
   title: 'Operação',
   items: [
     { to: '/map', label: 'Mapa', Icon: Map },
-    { to: '/bins', label: 'Lixeiras', Icon: Trash2 },
+    { to: '/bins', label: 'Lixeiras', Icon: Trash2, roles: ['ADMIN', 'LIMPEZA'] },
     { to: '/security', label: 'Segurança', Icon: ShieldCheck, roles: ['ADMIN', 'SEGURANCA'] },
     { to: '/tasks', label: 'Tarefas', Icon: CheckSquare },
   ],
@@ -116,7 +116,7 @@ export function MainLayout() {
         </div>
         <div className="min-w-0">
           <div className="text-sm font-bold leading-tight">Colecta</div>
-          <div className="truncate text-xs text-muted-foreground">Gestão de lixeiras</div>
+          <div className="truncate text-xs text-muted-foreground">Gestão e Automação</div>
         </div>
       </header>
 
@@ -143,7 +143,7 @@ export function MainLayout() {
           {!navCollapsed && (
             <div className="min-w-0 flex-1">
               <div className="text-sm font-bold leading-tight">Colecta</div>
-              <div className="text-xs text-muted-foreground">Gestão de lixeiras</div>
+              <div className="text-xs text-muted-foreground">Gestão e Automação</div>
             </div>
           )}
           {!navCollapsed && (

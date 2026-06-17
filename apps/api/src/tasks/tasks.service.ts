@@ -199,6 +199,24 @@ export class TasksService {
     if (isStarting) {
       data.startedAt = new Date();
       data.startedBy = actorId ? { connect: { id: actorId } } : { disconnect: true };
+
+      // Tarefa sem responsável específico (atribuída só a um time): ao iniciar,
+      // ela passa a ser atrelada à pessoa que a iniciou. Respeita um nome de
+      // responsável enviado explicitamente nesta mesma atualização.
+      //
+      // Tarefas de segurança são uma exceção: ficam num pool compartilhado da
+      // equipe e devem permanecer sem responsável mesmo após iniciadas.
+      const effectiveAssigneeName =
+        dto.assigneeName !== undefined ? dto.assigneeName : current.assigneeName;
+      const hasAssignee = !!effectiveAssigneeName && effectiveAssigneeName.trim() !== '';
+      const isSecurityTask = current.assigneeRole === UserRole.SEGURANCA;
+      if (actorId && !hasAssignee && !isSecurityTask) {
+        const starter = await this.prisma.user.findUnique({
+          where: { id: actorId },
+          select: { name: true },
+        });
+        if (starter?.name) data.assigneeName = starter.name;
+      }
     }
 
     const isCompleting =

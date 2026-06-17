@@ -162,7 +162,7 @@ function ThroughputChart({ data }: { data: ThroughputBucket[] }) {
   );
 
   return (
-    <ResponsiveContainer width="100%" height={180}>
+    <ResponsiveContainer width="100%" height="100%" minHeight={180}>
       <BarChart data={chartData} barCategoryGap="30%" barGap={2}>
         <CartesianGrid vertical={false} strokeDasharray="3 3" stroke={CHART_COLORS.border} />
         <XAxis
@@ -426,7 +426,7 @@ export function AnalyticsPage() {
 
       {/* Throughput + Bin Activity side by side */}
       <div className="grid gap-6 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
+        <Card className="flex flex-col lg:col-span-3">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
@@ -438,9 +438,9 @@ export function AnalyticsPage() {
               <TrendingUp className="h-5 w-5 text-muted-foreground" />
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-h-0 flex-1">
             {!throughput ? (
-              <div className="h-44 animate-pulse rounded-lg bg-muted" />
+              <div className="h-full min-h-44 animate-pulse rounded-lg bg-muted" />
             ) : (
               <ThroughputChart data={throughput} />
             )}

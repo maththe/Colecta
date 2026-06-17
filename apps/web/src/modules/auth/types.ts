@@ -31,6 +31,20 @@ export const EMPLOYEE_USER_ROLES: UserRole[] = [
   'SEGURANCA',
 ];
 
+/** Papéis que podem ver lixeiras — SEGURANCA é explicitamente excluído. */
+export const TRASH_BIN_ROLES: UserRole[] = [
+  'ADMIN',
+  'MANUTENCAO',
+  'LIMPEZA',
+  'FINANCEIRO',
+  'FUNCIONARIO',
+];
+
+/** A equipe de SEGURANCA não deve ver nada relacionado a lixeiras. */
+export function canSeeTrashBins(role: UserRole | null | undefined): boolean {
+  return role != null && role !== 'SEGURANCA';
+}
+
 export interface LoginInput {
   email: string;
   senha: string;

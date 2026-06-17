@@ -12,12 +12,23 @@ import {
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { UserRole } from '@prisma/client';
 import { TrashBinsService } from './trash-bins.service';
 import { CreateTrashBinDto } from './dto/create-trash-bin.dto';
 import { UpdateTrashBinDto } from './dto/update-trash-bin.dto';
 import { getTenantUuid } from '../common/tenant.util';
+import { Roles } from '../auth/roles.decorator';
 
+// Lixeiras ficam ocultas para a equipe de SEGURANCA: o papel não vê nada
+// relacionado a lixeiras (allowlist de todos os papéis, exceto SEGURANCA).
 @Controller('trash-bins')
+@Roles(
+  UserRole.ADMIN,
+  UserRole.MANUTENCAO,
+  UserRole.LIMPEZA,
+  UserRole.FINANCEIRO,
+  UserRole.FUNCIONARIO,
+)
 export class TrashBinsController {
   constructor(private readonly service: TrashBinsService) {}
 

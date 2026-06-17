@@ -4,6 +4,7 @@ import { formatRelativeTime } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import type { SecurityCamera } from '../types';
 import { STATUS_ACCENT } from '../lib/camera-status';
+import { cameraLocationLabel } from '../lib/camera-filters';
 import { CameraStatusBadge } from './CameraStatusBadge';
 import { CameraImageFrame, TargetLabel } from './CameraImageFrame';
 
@@ -42,7 +43,9 @@ export function CameraCard({
             {showLocation && (
               <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                 <MapPin className="h-3 w-3 shrink-0" />
-                <span className="truncate">{camera.locationName}</span>
+                <span className={cn('truncate', !camera.locationName && 'italic')}>
+                  {cameraLocationLabel(camera)}
+                </span>
               </p>
             )}
           </div>

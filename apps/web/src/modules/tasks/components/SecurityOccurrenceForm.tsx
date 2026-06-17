@@ -8,7 +8,7 @@ import {
   type TrashBin,
 } from '@/types';
 import type { SecurityCamera } from '@/modules/security/types';
-import { groupCamerasByLocation } from '@/modules/security/lib/camera-filters';
+import { cameraLocationLabel, groupCamerasByLocation } from '@/modules/security/lib/camera-filters';
 import {
   defaultOccurrenceTitle,
   occurrenceLink,
@@ -114,7 +114,9 @@ export function SecurityOccurrenceForm({
           </div>
           <div>
             <div className="font-medium text-foreground">Local</div>
-            <div className="mt-1 text-muted-foreground">{selectedCamera.locationName}</div>
+            <div className="mt-1 text-muted-foreground">
+              {cameraLocationLabel(selectedCamera)}
+            </div>
           </div>
           <div className="sm:col-span-2">
             <div className="font-medium text-foreground">Vínculo da tarefa</div>

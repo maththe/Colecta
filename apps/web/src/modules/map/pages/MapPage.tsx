@@ -18,8 +18,9 @@ import { Modal } from '@/components/Modal';
 import { FilterChips } from '@/components/ui/filter-chips';
 import { TaskForm } from '@/modules/tasks/components';
 import { useAuth } from '@/modules/auth/context/AuthContext';
+import { canSeeTrashBins } from '@/types';
 import { Button } from '@/components/ui/button';
-import { MapPin } from 'lucide-react';
+import { CheckCircle2, MapPin, Play } from 'lucide-react';
 
 // Filtro de quais marcadores aparecem no mapa.
 type MapMarkerFilter = 'all' | 'cameras' | 'locations' | 'bins' | 'tasks';
@@ -40,6 +41,9 @@ export function MapPage() {
   const focusLocationId = searchParams.get('location');
   const focusCameraId = searchParams.get('camera');
   const focusTaskId = searchParams.get('task');
+  // Tarefa que o funcionário veio iniciar pelo "Visualizar no mapa". Só esse
+  // fluxo passa esse parâmetro, então o botão "Iniciar tarefa" só aparece aqui.
+  const startTaskId = searchParams.get('startTask');
   const [bins, setBins] = useState<TrashBin[] | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [cameras, setCameras] = useState<SecurityCamera[]>([]);
@@ -63,9 +67,17 @@ export function MapPage() {
   const [markerFilter, setMarkerFilter] = useState<MapMarkerFilter>('all');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // Tarefa carregada para o atalho de iniciar pelo mapa (ver `startTaskId`).
+  const [startTask, setStartTask] = useState<Task | null>(null);
+  const [startingTask, setStartingTask] = useState(false);
+  const [startTaskError, setStartTaskError] = useState<string | null>(null);
+  // Aviso temporário (3s) exibido ao iniciar uma tarefa pelo mapa.
+  const [startedToast, setStartedToast] = useState<string | null>(null);
   const canCreateTasks = user?.role === 'ADMIN';
   // Câmeras só são visíveis para ADMIN e SEGURANCA (regra também imposta no servidor).
   const canViewCameras = user?.role === 'ADMIN' || user?.role === 'SEGURANCA';
+  // SEGURANCA não vê lixeiras: o endpoint responde 403, então nem chamamos.
+  const canSeeBins = canSeeTrashBins(user?.role);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,15 +85,18 @@ export function MapPage() {
     async function load() {
       setError(null);
       try {
-        // Só busca câmeras quem pode vê-las; os demais nem chamam o endpoint
-        // (que agora responde 403 para papéis sem permissão).
+        // Só busca câmeras/lixeiras quem pode vê-las; os demais nem chamam o
+        // endpoint (que agora responde 403 para papéis sem permissão).
         const camerasPromise = canViewCameras
           ? api.cameras.list()
           : Promise.resolve<SecurityCamera[]>([]);
+        const binsPromise = canSeeBins
+          ? api.trashBins.list()
+          : Promise.resolve<TrashBin[]>([]);
 
         if (canCreateTasks) {
           const [binData, locationData, cameraData, userData, taskData] = await Promise.all([
-            api.trashBins.list(),
+            binsPromise,
             api.locations.list(),
             camerasPromise,
             api.users.list(),
@@ -97,7 +112,7 @@ export function MapPage() {
         }
 
         const [binData, locationData, cameraData, taskData] = await Promise.all([
-          api.trashBins.list(),
+          binsPromise,
           api.locations.list(),
           camerasPromise,
           api.tasks.mapTasks(),
@@ -119,7 +134,30 @@ export function MapPage() {
     return () => {
       cancelled = true;
     };
-  }, [canCreateTasks, canViewCameras]);
+  }, [canCreateTasks, canViewCameras, canSeeBins]);
+
+  // Carrega a tarefa do atalho "Iniciar no mapa". Buscamos por id porque ela
+  // pode não estar entre os marcadores do mapa (ex.: ocorrência de câmera, que
+  // não tem coordenada própria).
+  useEffect(() => {
+    if (!startTaskId) {
+      setStartTask(null);
+      return;
+    }
+    let cancelled = false;
+    setStartTaskError(null);
+    api.tasks
+      .get(startTaskId)
+      .then((task) => {
+        if (!cancelled) setStartTask(task);
+      })
+      .catch(() => {
+        if (!cancelled) setStartTask(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [startTaskId]);
 
   const center = useMemo<[number, number]>(() => {
     if (focusCameraId) {
@@ -162,51 +200,38 @@ export function MapPage() {
   const hasMapData =
     (bins?.length ?? 0) > 0 || locations.length > 0 || cameras.length > 0;
 
-  // Sem permissão para câmeras, o filtro "Câmeras" não faz sentido.
+  // Esconde filtros que o papel não pode ver: "Câmeras" (sem permissão) e
+  // "Lixeiras" (SEGURANCA não vê nada relacionado a lixeiras).
   const markerFilters = useMemo(
     () =>
-      canViewCameras
-        ? MARKER_FILTERS
-        : MARKER_FILTERS.filter((filter) => filter.value !== 'cameras'),
-    [canViewCameras],
+      MARKER_FILTERS.filter(
+        (filter) =>
+          (filter.value !== 'cameras' || canViewCameras) &&
+          (filter.value !== 'bins' || canSeeBins),
+      ),
+    [canViewCameras, canSeeBins],
   );
 
-  // Marcadores exibidos conforme o filtro selecionado. Ao focar um marcador via
-  // deep-link (ex.: "ver no mapa" de uma tarefa), garantimos que apenas o
-  // marcador focado apareça mesmo que o filtro esteja em outra categoria — sem
-  // reativar a categoria inteira, caso contrário o filtro ficaria inutilizável
-  // após chegar ao mapa por um deep-link.
+  // Marcadores exibidos conforme o filtro selecionado. O filtro é autoritativo:
+  // ao trocar de categoria, o marcador some — mesmo que tenha sido focado por um
+  // deep-link ("ver no mapa"). O deep-link continua funcionando porque o filtro
+  // começa em "Tudo" ao chegar no mapa, então o marcador aparece e o mapa voa
+  // até ele; trocar o filtro depois apenas oculta a categoria, como esperado.
   const showBins = markerFilter === 'all' || markerFilter === 'bins';
   const showLocations = markerFilter === 'all' || markerFilter === 'locations';
   const showCameras = markerFilter === 'all' || markerFilter === 'cameras';
   const showTasks = markerFilter === 'all' || markerFilter === 'tasks';
 
-  const visibleBins = useMemo(() => {
-    if (showBins) return bins ?? [];
-    const focused = focusBinId ? (bins ?? []).find((b) => b.id === focusBinId) : undefined;
-    return focused ? [focused] : [];
-  }, [bins, showBins, focusBinId]);
+  const visibleBins = useMemo(() => (showBins ? bins ?? [] : []), [bins, showBins]);
 
-  const visibleLocations = useMemo(() => {
-    // Mostramos todas as posições tanto no "Tudo" quanto no filtro dedicado —
-    // como as lixeiras são levemente deslocadas no mapa (ver TrashBinMap), o
-    // marcador azul da posição não fica mais escondido embaixo das lixeiras.
-    if (showLocations) return locations;
-    const focused = focusLocationId ? locations.find((l) => l.id === focusLocationId) : undefined;
-    return focused ? [focused] : [];
-  }, [locations, showLocations, focusLocationId]);
+  const visibleLocations = useMemo(
+    () => (showLocations ? locations : []),
+    [locations, showLocations],
+  );
 
-  const visibleCameras = useMemo(() => {
-    if (showCameras) return cameras;
-    const focused = focusCameraId ? cameras.find((c) => c.id === focusCameraId) : undefined;
-    return focused ? [focused] : [];
-  }, [cameras, showCameras, focusCameraId]);
+  const visibleCameras = useMemo(() => (showCameras ? cameras : []), [cameras, showCameras]);
 
-  const visibleTasks = useMemo(() => {
-    if (showTasks) return tasks;
-    const focused = focusTaskId ? tasks.find((t) => t.id === focusTaskId) : undefined;
-    return focused ? [focused] : [];
-  }, [tasks, showTasks, focusTaskId]);
+  const visibleTasks = useMemo(() => (showTasks ? tasks : []), [tasks, showTasks]);
 
   // Recarrega só os marcadores de tarefa (após criar uma) sem repuxar o resto.
   async function reloadTasks() {
@@ -215,6 +240,31 @@ export function MapPage() {
       setTasks(taskData);
     } catch {
       // Falha silenciosa: os demais marcadores seguem válidos no mapa.
+    }
+  }
+
+  // O aviso de "tarefa iniciada" some sozinho após 3 segundos.
+  useEffect(() => {
+    if (!startedToast) return;
+    const timer = setTimeout(() => setStartedToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [startedToast]);
+
+  // Inicia a tarefa do atalho do mapa (pending → in_progress). Some o banner ao
+  // concluir e atualiza os marcadores de tarefa.
+  async function handleStartTask() {
+    if (!startTask || startingTask) return;
+    setStartingTask(true);
+    setStartTaskError(null);
+    try {
+      await api.tasks.update(startTask.id, { status: 'in_progress' });
+      setStartedToast(startTask.title);
+      setStartTask(null);
+      await reloadTasks();
+    } catch (err: unknown) {
+      setStartTaskError(err instanceof ApiError ? err.message : 'Erro ao iniciar a tarefa');
+    } finally {
+      setStartingTask(false);
     }
   }
 
@@ -347,7 +397,9 @@ export function MapPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Mapa</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Posições e lixeiras em tempo real</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {canSeeBins ? 'Posições e lixeiras em tempo real' : 'Posições e câmeras em tempo real'}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <FilterChips options={markerFilters} value={markerFilter} onChange={setMarkerFilter} />
@@ -375,13 +427,51 @@ export function MapPage() {
         </div>
       )}
 
+      {startTask && startTask.status === 'pending' && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-500/30 bg-blue-500/5 px-3 py-2 text-sm">
+          <span>
+            <strong>{startTask.title}</strong> — pronta para iniciar
+          </span>
+          <div className="flex items-center gap-2">
+            {startTaskError && <span className="text-destructive">{startTaskError}</span>}
+            <Button
+              type="button"
+              disabled={startingTask}
+              onClick={handleStartTask}
+              className="border-blue-500 bg-blue-500 text-white hover:bg-blue-600"
+            >
+              <Play className="h-4 w-4" />
+              {startingTask ? 'Iniciando...' : 'Iniciar tarefa'}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {error && <ErrorState message={error} />}
       {!bins && !error && <LoadingState label="Carregando mapa..." />}
       {bins && !hasMapData && (
-        <EmptyState label="Sem posições ou lixeiras cadastradas para exibir no mapa." />
+        <EmptyState
+          label={
+            canSeeBins
+              ? 'Sem posições ou lixeiras cadastradas para exibir no mapa.'
+              : 'Sem posições cadastradas para exibir no mapa.'
+          }
+        />
       )}
       {bins && hasMapData && (
-        <div className="min-h-[480px] overflow-hidden rounded-xl border border-border" style={{ height: 'calc(100vh - 200px)' }}>
+        <div className="relative min-h-[480px] overflow-hidden rounded-xl border border-border" style={{ height: 'calc(100vh - 200px)' }}>
+          {startedToast && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="animate-toast-in absolute right-4 top-4 z-[1000] flex items-center gap-2.5 rounded-xl border border-primary/30 bg-card px-4 py-3 text-sm shadow-lg"
+            >
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
+              <span>
+                Tarefa <strong>{startedToast}</strong> iniciada
+              </span>
+            </div>
+          )}
           <TrashBinMap
             bins={visibleBins}
             locations={visibleLocations}

@@ -493,7 +493,7 @@ const colecta: TenantSeed = {
       locIdx: 0,
       binCode: null,
       lastSeenHoursAgo: 0,
-      imageUrl: '/security/cameras/portaria-norte-entrada.jpg',
+      imageUrl: '/security/cameras/passagens-aereas-sao-paulo-capa2019-04-820x430.jpg',
       notes: 'Cobertura da entrada principal e catracas.',
     },
     {
@@ -509,7 +509,7 @@ const colecta: TenantSeed = {
       locIdx: null,
       binCode: 'PRQ-001',
       lastSeenHoursAgo: 0,
-      imageUrl: '/security/cameras/portaria-norte-lixeira.jpg',
+      imageUrl: '/security/cameras/ibirapuera-entrada-norte-lixeira.jpg',
       notes: 'Foco no ponto de descarte junto à entrada.',
     },
     {
@@ -541,7 +541,7 @@ const colecta: TenantSeed = {
       locIdx: null,
       binCode: 'PRQ-008',
       lastSeenHoursAgo: 0,
-      imageUrl: '/security/cameras/lago-ipes-deque.jpg',
+      imageUrl: '/security/cameras/ibirapuera-lago.avif',
       notes: 'Cobre a margem do lago e o ponto de coleta.',
     },
     {

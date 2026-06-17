@@ -1,26 +1,35 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet';
-import { ArrowLeft, MapPin, Trash2 } from 'lucide-react';
+import { ArrowLeft, Camera, MapPin, Trash2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { ErrorState, LoadingState, EmptyState } from '@/components/States';
 import { Modal } from '@/components/Modal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { LocationForm } from '../components/LocationForm';
 import { TrashBinForm } from '@/modules/trash-bins/components/TrashBinForm';
+import { CameraForm } from '@/modules/security/components';
 import { useAuth } from '@/modules/auth/context/AuthContext';
 import { formatCoord } from '@/lib/format';
-import type { CreateLocationInput, CreateTrashBinInput, Location, TrashBin } from '@/types';
+import type {
+  CreateCameraInput,
+  CreateLocationInput,
+  CreateTrashBinInput,
+  Location,
+  SecurityCamera,
+  TrashBin,
+} from '@/types';
 import { Button } from '@/components/ui/button';
 import {
   buildMarkerIcon,
+  CAMERA_COLOR,
   LOCATION_COLOR,
   MARKER_ICONS,
   spreadBins,
   STATUS_COLOR,
 } from '@/modules/trash-bins/components/map-markers';
 
-type CreateMode = 'location' | 'trash-bin';
+type CreateMode = 'location' | 'trash-bin' | 'camera';
 
 type DraftPlacement = {
   latitude: number;
@@ -31,7 +40,8 @@ type DraftPlacement = {
 // Item marcado para exclusão, aguardando confirmação no diálogo.
 type PendingDelete =
   | { kind: 'location'; item: Location }
-  | { kind: 'bin'; item: TrashBin };
+  | { kind: 'bin'; item: TrashBin }
+  | { kind: 'camera'; item: SecurityCamera };
 
 const DEFAULT_CENTER: [number, number] = [-23.5874, -46.6576];
 
@@ -61,6 +71,7 @@ function MapClickHandler({
 function PlacementMap({
   locations,
   bins,
+  cameras,
   center,
   draftPlacement,
   canCreate,
@@ -69,6 +80,7 @@ function PlacementMap({
 }: {
   locations: Location[];
   bins: TrashBin[];
+  cameras: SecurityCamera[];
   center: [number, number];
   draftPlacement: DraftPlacement | null;
   canCreate: boolean;
@@ -125,13 +137,33 @@ function PlacementMap({
         </Marker>
       ))}
 
+      {cameras.map((camera) => (
+        <Marker
+          key={camera.id}
+          position={[camera.latitude, camera.longitude]}
+          icon={buildMarkerIcon(CAMERA_COLOR[camera.status], MARKER_ICONS.camera)}
+        >
+          <Popup>
+            <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{camera.name}</p>
+            <p style={{ fontSize: 12, margin: '2px 0' }}>
+              <strong>Código:</strong> {camera.code}
+            </p>
+            <p style={{ fontSize: 12, margin: '2px 0' }}>
+              {formatCoord(camera.latitude)}, {formatCoord(camera.longitude)}
+            </p>
+          </Popup>
+        </Marker>
+      ))}
+
       {draftPlacement && (
         <Marker
           position={[draftPlacement.latitude, draftPlacement.longitude]}
           icon={
             draftPlacement.mode === 'location'
               ? buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.location, 34)
-              : buildMarkerIcon(STATUS_COLOR.active, MARKER_ICONS.bin, 32)
+              : draftPlacement.mode === 'camera'
+                ? buildMarkerIcon(CAMERA_COLOR.online, MARKER_ICONS.camera, 32)
+                : buildMarkerIcon(STATUS_COLOR.active, MARKER_ICONS.bin, 32)
           }
         />
       )}
@@ -144,6 +176,7 @@ export function LocationsPage() {
   const navigate = useNavigate();
   const [locations, setLocations] = useState<Location[] | null>(null);
   const [bins, setBins] = useState<TrashBin[]>([]);
+  const [cameras, setCameras] = useState<SecurityCamera[]>([]);
   const [mode, setMode] = useState<CreateMode>('location');
   const [error, setError] = useState<string | null>(null);
   const [draftPlacement, setDraftPlacement] = useState<DraftPlacement | null>(null);
@@ -157,12 +190,14 @@ export function LocationsPage() {
   async function loadData() {
     setError(null);
     try {
-      const [locationData, binData] = await Promise.all([
+      const [locationData, binData, cameraData] = await Promise.all([
         api.locations.list(),
         api.trashBins.list(),
+        api.cameras.list(),
       ]);
       setLocations(locationData);
       setBins(binData);
+      setCameras(cameraData);
     } catch (err: unknown) {
       setError(err instanceof ApiError ? err.message : 'Falha ao carregar dados do mapa');
     }
@@ -214,6 +249,14 @@ export function LocationsPage() {
     [bins],
   );
 
+  const sortedCameras = useMemo(
+    () =>
+      [...cameras].sort((a, b) =>
+        `${a.code} ${a.name}`.localeCompare(`${b.code} ${b.name}`, 'pt-BR'),
+      ),
+    [cameras],
+  );
+
   function closeModal() {
     setDraftPlacement(null);
     setFormError(null);
@@ -252,6 +295,8 @@ export function LocationsPage() {
     try {
       if (pendingDelete.kind === 'location') {
         await api.locations.remove(pendingDelete.item.id);
+      } else if (pendingDelete.kind === 'camera') {
+        await api.cameras.remove(pendingDelete.item.id);
       } else {
         await api.trashBins.remove(pendingDelete.item.id);
       }
@@ -279,7 +324,27 @@ export function LocationsPage() {
     }
   }
 
-  const modalTitle = draftPlacement?.mode === 'trash-bin' ? 'Nova lixeira' : 'Nova posição';
+  async function handleCameraSubmit(values: CreateCameraInput) {
+    if (!draftPlacement || !canCreate) return;
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      await api.cameras.create(values);
+      closeModal();
+      await loadData();
+    } catch (err: unknown) {
+      setFormError(err instanceof ApiError ? err.message : 'Erro ao cadastrar câmera');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const modalTitle =
+    draftPlacement?.mode === 'trash-bin'
+      ? 'Nova lixeira'
+      : draftPlacement?.mode === 'camera'
+        ? 'Nova câmera'
+        : 'Nova posição';
 
   return (
     <div className="flex flex-col gap-6">
@@ -297,7 +362,7 @@ export function LocationsPage() {
           <div>
             <h1 className="text-2xl font-bold">Adicionar no mapa</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Cadastre posições e lixeiras pela coordenada selecionada
+              Cadastre posições, lixeiras e câmeras pela coordenada selecionada
             </p>
           </div>
         </div>
@@ -321,6 +386,15 @@ export function LocationsPage() {
             <Trash2 className="h-4 w-4" />
             Lixeira
           </Button>
+          <Button
+            type="button"
+            variant={mode === 'camera' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setMode('camera')}
+          >
+            <Camera className="h-4 w-4" />
+            Câmera
+          </Button>
         </div>
       </div>
 
@@ -336,6 +410,7 @@ export function LocationsPage() {
             <PlacementMap
               locations={locations}
               bins={bins}
+              cameras={cameras}
               center={center}
               draftPlacement={draftPlacement}
               canCreate={canCreate}
@@ -457,6 +532,54 @@ export function LocationsPage() {
                 )}
               </div>
               )}
+
+              {mode === 'camera' && (
+              <div className="px-4 py-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Câmeras
+                  </h3>
+                  <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium">
+                    {sortedCameras.length}
+                  </span>
+                </div>
+                {sortedCameras.length === 0 ? (
+                  <EmptyState label="Nenhuma câmera cadastrada." className="rounded-lg py-8" />
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {sortedCameras.map((camera) => (
+                      <div key={camera.id} className="flex gap-3">
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+                          <Camera className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">
+                              {camera.code}
+                            </span>
+                            <span className="truncate text-sm font-semibold">{camera.name}</span>
+                          </div>
+                          <p className="mt-1 font-mono text-xs text-muted-foreground">
+                            {formatCoord(camera.latitude)}, {formatCoord(camera.longitude)}
+                          </p>
+                        </div>
+                        {canCreate && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => requestDelete({ kind: 'camera', item: camera })}
+                            aria-label={`Excluir câmera ${camera.name}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              )}
             </div>
           </aside>
         </div>
@@ -480,6 +603,17 @@ export function LocationsPage() {
               onCancel={closeModal}
               onSubmit={handleLocationSubmit}
             />
+          ) : draftPlacement.mode === 'camera' ? (
+            <CameraForm
+              key={`${draftPlacement.latitude}:${draftPlacement.longitude}:camera`}
+              defaults={{
+                latitude: draftPlacement.latitude,
+                longitude: draftPlacement.longitude,
+              }}
+              submitting={submitting}
+              onCancel={closeModal}
+              onSubmit={handleCameraSubmit}
+            />
           ) : (
             <TrashBinForm
               key={`${draftPlacement.latitude}:${draftPlacement.longitude}:trash-bin`}
@@ -498,7 +632,13 @@ export function LocationsPage() {
 
       <ConfirmDialog
         open={!!pendingDelete}
-        title={pendingDelete?.kind === 'bin' ? 'Excluir lixeira' : 'Excluir posição'}
+        title={
+          pendingDelete?.kind === 'bin'
+            ? 'Excluir lixeira'
+            : pendingDelete?.kind === 'camera'
+              ? 'Excluir câmera'
+              : 'Excluir posição'
+        }
         description={
           pendingDelete &&
           (pendingDelete.kind === 'bin' ? (
@@ -506,6 +646,11 @@ export function LocationsPage() {
               A lixeira <strong>{pendingDelete.item.name}</strong> será removida. A posição vinculada
               também sai do mapa, a menos que outra lixeira a utilize. Esta ação não pode ser
               desfeita.
+            </>
+          ) : pendingDelete.kind === 'camera' ? (
+            <>
+              A câmera <strong>{pendingDelete.item.name}</strong> será removida do mapa. Esta ação
+              não pode ser desfeita.
             </>
           ) : (
             <>

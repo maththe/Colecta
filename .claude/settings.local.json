@@ -113,7 +113,10 @@
       "Bash(echo \"API_DONE_EXIT_$?\")",
       "Bash(echo \"WEB_DONE_EXIT_$?\")",
       "Bash(echo \"TS_EXIT_$?\")",
-      "Bash(echo \"WEB_EXIT_$?\")"
+      "Bash(echo \"WEB_EXIT_$?\")",
+      "Bash(cp \"images.jpg\" \"apps/web/public/security/cameras/ibirapuera-entrada-norte-lixeira.jpg\")",
+      "Bash(cp \"o-que-fazer-no-ibirapuera-guia-completo-das-melhores-atracoes-thumbnail.webp\" \"apps/web/public/security/cameras/ibirapuera-entrada-norte.webp\")",
+      "Bash(cp \"whatsapp-image-2024-03-15-at-11.40.44.avif\" \"apps/web/public/security/cameras/ibirapuera-lago.avif\")"
     ]
   }
 }

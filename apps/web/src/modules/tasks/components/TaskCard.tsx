@@ -42,17 +42,17 @@ export function TaskCard({
   return (
     <article
       className={cn(
-        'flex flex-col gap-2 rounded-lg border border-l-4 border-border bg-card p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
+        'flex h-56 flex-col gap-2 rounded-lg border border-l-4 border-border bg-card p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
         STATUS_ACCENT[task.status],
       )}
     >
       <button
         type="button"
         onClick={() => onOpen(task)}
-        className="flex w-full flex-col gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex w-full min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-semibold leading-snug">{task.title}</h3>
+        <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{task.title}</h3>
         <TaskPriorityBadge priority={task.priority} />
       </div>
 
@@ -99,7 +99,7 @@ export function TaskCard({
       </div>
       </button>
       {showFooter && (
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border pt-2">
           {admin.canManage && (
             <>
               <Button

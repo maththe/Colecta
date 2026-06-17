@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { TRASH_BIN_ROLES } from '@/types';
 import { AuthProvider, useAuth } from '@/modules/auth/context/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ProtectedRoute } from '@/modules/auth/components/ProtectedRoute';
@@ -32,12 +33,13 @@ export function App() {
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/finance" element={<FinancePage />} />
               </Route>
-              <Route path="/bins" element={<BinsPage />} />
+              <Route element={<ProtectedRoute allow={TRASH_BIN_ROLES} />}>
+                <Route path="/bins" element={<BinsPage />} />
+              </Route>
               <Route path="/locations" element={<LocationsPage />} />
               <Route path="/map" element={<MapPage />} />
               <Route element={<ProtectedRoute allow={['ADMIN', 'SEGURANCA']} />}>
                 <Route path="/security" element={<SecurityPage />} />
-                <Route path="/security/:locationId" element={<SecurityPage />} />
               </Route>
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="*" element={<HomeRedirect />} />

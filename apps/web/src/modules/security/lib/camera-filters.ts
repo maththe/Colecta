@@ -2,7 +2,11 @@ import type { SecurityCamera, SecurityLocation } from '../types';
 import { targetText } from './occurrence-link';
 import { isAttentionStatus } from './camera-status';
 
-export type StatusFilter = SecurityCamera['status'] | 'all';
+/** Rótulo exibido para câmeras que não pertencem a nenhuma localização. */
+export const NO_LOCATION_LABEL = 'Sem localização';
+
+/** "atenção" agrega offline + manutenção; os demais são status diretos. */
+export type StatusFilter = 'all' | 'attention' | SecurityCamera['status'];
 export type TargetFilter = SecurityCamera['target']['kind'] | 'all';
 
 export interface StatusSummary {
@@ -11,7 +15,15 @@ export interface StatusSummary {
   maintenance: number;
 }
 
-/** Agrupa câmeras por localização, preservando o formato `SecurityLocation`. */
+/** Nome amigável da localização da câmera (ou "Sem localização" quando órfã). */
+export function cameraLocationLabel(camera: Pick<SecurityCamera, 'locationName'>): string {
+  return camera.locationName || NO_LOCATION_LABEL;
+}
+
+/**
+ * Agrupa câmeras por localização, preservando o formato `SecurityLocation`.
+ * Câmeras sem localização caem num grupo "Sem localização" exibido por último.
+ */
 export function groupCamerasByLocation(cameras: SecurityCamera[]): SecurityLocation[] {
   const locations = new Map<string, SecurityLocation>();
 
@@ -22,15 +34,18 @@ export function groupCamerasByLocation(cameras: SecurityCamera[]): SecurityLocat
     } else {
       locations.set(camera.locationId, {
         id: camera.locationId,
-        name: camera.locationName,
+        name: cameraLocationLabel(camera),
         cameras: [camera],
       });
     }
   }
 
-  return Array.from(locations.values()).sort((a, b) =>
-    a.name.localeCompare(b.name, 'pt-BR'),
-  );
+  return Array.from(locations.values()).sort((a, b) => {
+    // Grupo "Sem localização" (id vazio) sempre por último.
+    if (!a.id) return 1;
+    if (!b.id) return -1;
+    return a.name.localeCompare(b.name, 'pt-BR');
+  });
 }
 
 export function statusSummary(cameras: SecurityCamera[]): StatusSummary {
@@ -41,24 +56,9 @@ export function statusSummary(cameras: SecurityCamera[]): StatusSummary {
   };
 }
 
-/** Quantas câmeras da localização precisam de atenção (offline + manutenção). */
+/** Quantas câmeras precisam de atenção (offline + manutenção). */
 export function attentionCount(cameras: SecurityCamera[]): number {
   return cameras.filter((camera) => isAttentionStatus(camera.status)).length;
-}
-
-export function latestSeen(cameras: SecurityCamera[]): string | null {
-  return (
-    cameras
-      .map((camera) => camera.lastSeenAt)
-      .filter((value): value is string => !!value)
-      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null
-  );
-}
-
-/** Peso para ordenar localizações: prioriza as com mais problemas. */
-export function locationWeight(location: SecurityLocation): number {
-  const summary = statusSummary(location.cameras);
-  return summary.offline * 3 + summary.maintenance * 2;
 }
 
 export function cameraMatches(
@@ -74,7 +74,9 @@ export function cameraMatches(
     camera.code.toLowerCase().includes(q) ||
     camera.locationName.toLowerCase().includes(q) ||
     targetText(camera).toLowerCase().includes(q);
-  const matchesStatus = status === 'all' || camera.status === status;
+  const matchesStatus =
+    status === 'all' ||
+    (status === 'attention' ? isAttentionStatus(camera.status) : camera.status === status);
   const matchesTarget = target === 'all' || camera.target.kind === target;
 
   return matchesQuery && matchesStatus && matchesTarget;

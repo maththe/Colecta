@@ -33,6 +33,22 @@ export interface SecurityCamera {
   notes?: string;
 }
 
+export interface CreateCameraInput {
+  code: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  model?: string;
+  ipAddress?: string;
+  resolution?: string;
+  fps?: number;
+  status?: CameraStatus;
+  imageUrl?: string;
+  notes?: string;
+  locationId?: string | null;
+  trashBinId?: string | null;
+}
+
 export interface SecurityLocation {
   id: string;
   name: string;

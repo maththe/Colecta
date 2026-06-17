@@ -102,7 +102,13 @@ export function TaskDetailsModal({
           </dl>
 
           {(() => {
-            const href = taskMapHref(task);
+            const baseHref = taskMapHref(task);
+            // Tarefa pendente: levamos o id na URL para que o mapa ofereça o
+            // botão "Iniciar tarefa" (o funcionário inicia direto de lá).
+            const href =
+              baseHref && task.status === 'pending'
+                ? `${baseHref}&startTask=${task.id}`
+                : baseHref;
             if (!href && !action && !admin.canManage) return null;
 
             return (

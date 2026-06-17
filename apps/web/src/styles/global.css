@@ -101,6 +101,22 @@
   box-sizing: border-box;
 }
 
+/* Aviso flutuante (ex.: "tarefa iniciada") entrando pela direita. */
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(120%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-toast-in {
+  animation: toast-slide-in 0.3s ease-out;
+}
+
 html,
 body,
 #root {
@@ -120,6 +136,16 @@ a {
 select {
   color: var(--foreground);
   color-scheme: light;
+  /* Removemos a seta nativa (que troca de cor no foco/clique conforme o accent
+     do SO) e desenhamos uma própria, com cor fixa que respeita o tema. */
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1rem;
+  padding-right: 2rem;
 }
 
 select option,
@@ -130,6 +156,7 @@ select optgroup {
 
 .dark select {
   color-scheme: dark;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
 /* Keep Leaflet's internal panes from escaping above app-level floating UI. */
