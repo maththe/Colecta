@@ -9,6 +9,8 @@ export function taskMapHref(task: Task): string | null {
   if (task.cameraId) return `/map?camera=${task.cameraId}`;
   if (task.trashBin) return `/map?bin=${task.trashBin.id}`;
   if (task.location) return `/map?location=${task.location.id}`;
+  // Tarefa posicionada livremente no mapa: foca o próprio marcador da tarefa.
+  if (task.latitude !== null && task.longitude !== null) return `/map?task=${task.id}`;
   return null;
 }
 

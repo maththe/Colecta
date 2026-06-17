@@ -1,11 +1,14 @@
 import {
   IsDateString,
   IsEnum,
+  IsLatitude,
+  IsLongitude,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 import { TaskPriority, TaskStatus, UserRole } from '@prisma/client';
 
@@ -35,6 +38,16 @@ export class CreateTaskDto {
   @IsOptional()
   @IsUUID()
   locationId?: string | null;
+
+  // Coordenadas para tarefa posicionada livremente no mapa. As duas precisam vir
+  // juntas: se uma for informada, a outra passa a ser obrigatória.
+  @ValidateIf((o: CreateTaskDto) => o.longitude !== undefined && o.longitude !== null)
+  @IsLatitude()
+  latitude?: number | null;
+
+  @ValidateIf((o: CreateTaskDto) => o.latitude !== undefined && o.latitude !== null)
+  @IsLongitude()
+  longitude?: number | null;
 
   @IsOptional()
   @IsString()

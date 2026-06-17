@@ -85,14 +85,19 @@ export function TasksBoard({
     onFocusTaskConsumed?.();
   }, [focusTaskId, onFocusTaskConsumed, tasks]);
 
-  // Escopo "Meu time" limita às tarefas atribuídas ao funcionário ou ao tipo dele.
+  // O servidor já entrega apenas as tarefas do time do funcionário. Aqui o
+  // escopo "Minhas" estreita para as atribuídas nominalmente a ele; "Do meu
+  // time" mostra todas as recebidas (o time inteiro). Sem nome para filtrar,
+  // "Minhas" cai para o papel para não ficar vazio à toa.
   const scopedTasks = useMemo(
     () =>
       canScope && scope === 'mine'
-        ? tasks.filter(
-            (task) =>
-              (currentUserName ? task.assigneeName === currentUserName : false) ||
-              (currentUserRole ? task.assigneeRole === currentUserRole : false),
+        ? tasks.filter((task) =>
+            currentUserName
+              ? task.assigneeName === currentUserName
+              : currentUserRole
+                ? task.assigneeRole === currentUserRole
+                : true,
           )
         : tasks,
     [canScope, scope, tasks, currentUserName, currentUserRole],
@@ -122,7 +127,6 @@ export function TasksBoard({
     setActionError(null);
     try {
       const updated = await onStatusChange(task, status);
-      setSelected((current) => (current?.id === task.id ? updated : current));
       return updated;
     } catch (err) {
       setActionError(describeStatusError(err));
@@ -143,6 +147,9 @@ export function TasksBoard({
     try {
       await handleStatusChange(pendingAction.task, pendingAction.status);
       setPendingAction(null);
+      // Fecha o detalhe após a ação para não reabrir o próximo passo
+      // (iniciar não deve "virar" um modal de concluir, e vice-versa).
+      setSelected(null);
     } catch (err) {
       setConfirmError(describeStatusError(err));
     }
@@ -166,8 +173,8 @@ export function TasksBoard({
       {canScope && (
         <FilterChips
           options={[
-            { value: 'mine', label: 'Meu time' },
-            { value: 'all', label: 'Todas as tarefas' },
+            { value: 'mine', label: 'Minhas' },
+            { value: 'all', label: 'Do meu time' },
           ]}
           value={scope}
           onChange={(next) => setScope(next as Scope)}

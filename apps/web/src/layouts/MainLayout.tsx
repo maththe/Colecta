@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { UserRole } from '@/types';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/modules/auth/context/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -28,6 +29,8 @@ interface NavItem {
   to: string;
   label: string;
   Icon: LucideIcon;
+  /** Quando definido, o item só aparece para os papéis listados. */
+  roles?: UserRole[];
 }
 
 const operationSection = {
@@ -35,7 +38,7 @@ const operationSection = {
   items: [
     { to: '/map', label: 'Mapa', Icon: Map },
     { to: '/bins', label: 'Lixeiras', Icon: Trash2 },
-    { to: '/security', label: 'Segurança', Icon: ShieldCheck },
+    { to: '/security', label: 'Segurança', Icon: ShieldCheck, roles: ['ADMIN', 'SEGURANCA'] },
     { to: '/tasks', label: 'Tarefas', Icon: CheckSquare },
   ],
 } satisfies { title?: string; items: NavItem[] };
@@ -70,10 +73,14 @@ export function MainLayout() {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  const sections: { title?: string; items: NavItem[] }[] =
-    user?.role === 'ADMIN'
-      ? [dashboardSection, operationSection]
-      : [operationSection];
+  const visibleItems = (items: NavItem[]): NavItem[] =>
+    items.filter((item) => !item.roles || (user != null && item.roles.includes(user.role)));
+
+  const sections: { title?: string; items: NavItem[] }[] = (
+    user?.role === 'ADMIN' ? [dashboardSection, operationSection] : [operationSection]
+  )
+    .map((section) => ({ ...section, items: visibleItems(section.items) }))
+    .filter((section) => section.items.length > 0);
 
   const handleLogout = () => {
     logout();

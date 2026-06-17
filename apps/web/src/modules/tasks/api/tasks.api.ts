@@ -3,6 +3,8 @@ import { request } from '@/lib/api/client';
 
 export const tasksApi = {
   list: () => request<Task[]>('/tasks'),
+  /** Tarefas posicionadas no mapa, já filtradas por equipe no servidor. */
+  mapTasks: () => request<Task[]>('/tasks/map'),
   get: (id: string) => request<Task>(`/tasks/${id}`),
   create: (data: CreateTaskInput) =>
     request<Task>('/tasks', { method: 'POST', body: JSON.stringify(data) }),

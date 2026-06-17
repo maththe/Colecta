@@ -29,7 +29,8 @@ type LinkType = 'bin' | 'location' | 'none';
 // so the form can show it read-only and skip the bin/location dropdowns.
 export type TaskFormTarget =
   | { kind: 'bin'; bin: TrashBin }
-  | { kind: 'location'; location: Location };
+  | { kind: 'location'; location: Location }
+  | { kind: 'point'; latitude: number; longitude: number };
 
 interface Props {
   initial?: Task | null;
@@ -146,11 +147,20 @@ export function TaskForm({
     // payload is correct regardless of any unrendered field state.
     const link = target
       ? target.kind === 'bin'
-        ? { trashBinId: target.bin.id, locationId: null }
-        : { trashBinId: null, locationId: target.location.id }
+        ? { trashBinId: target.bin.id, locationId: null, latitude: null, longitude: null }
+        : target.kind === 'location'
+          ? { trashBinId: null, locationId: target.location.id, latitude: null, longitude: null }
+          : {
+              trashBinId: null,
+              locationId: null,
+              latitude: target.latitude,
+              longitude: target.longitude,
+            }
       : {
           trashBinId: values.trashBinId ? values.trashBinId : null,
           locationId: values.locationId ? values.locationId : null,
+          latitude: null,
+          longitude: null,
         };
     const payload: CreateTaskInput = {
       title: values.title.trim(),
@@ -159,6 +169,8 @@ export function TaskForm({
       priority: values.priority,
       trashBinId: link.trashBinId,
       locationId: link.locationId,
+      latitude: link.latitude,
+      longitude: link.longitude,
       assigneeRole,
       assigneeName: trimmedAssignee ? trimmedAssignee : isEditing ? null : undefined,
       dueDate: values.dueDate
@@ -200,7 +212,13 @@ export function TaskForm({
 
       {target ? (
         <div className="flex flex-col gap-1.5">
-          <Label>{target.kind === 'bin' ? 'Lixeira' : 'Posição'}</Label>
+          <Label>
+            {target.kind === 'bin'
+              ? 'Lixeira'
+              : target.kind === 'location'
+                ? 'Posição'
+                : 'Local no mapa'}
+          </Label>
           <div className="flex items-center gap-2 rounded-lg border border-input bg-muted/40 px-2.5 py-2 text-sm">
             {target.kind === 'bin' ? (
               <>
@@ -210,10 +228,17 @@ export function TaskForm({
                 </span>
                 <span className="text-muted-foreground">{target.bin.name}</span>
               </>
-            ) : (
+            ) : target.kind === 'location' ? (
               <>
                 <MapPin className="h-4 w-4 shrink-0 text-primary" />
                 <span>{target.location.name}</span>
+              </>
+            ) : (
+              <>
+                <MapPin className="h-4 w-4 shrink-0 text-primary" />
+                <span className="font-mono text-xs">
+                  {target.latitude.toFixed(5)}, {target.longitude.toFixed(5)}
+                </span>
               </>
             )}
           </div>

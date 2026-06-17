@@ -35,8 +35,10 @@ export function App() {
               <Route path="/bins" element={<BinsPage />} />
               <Route path="/locations" element={<LocationsPage />} />
               <Route path="/map" element={<MapPage />} />
-              <Route path="/security" element={<SecurityPage />} />
-              <Route path="/security/:locationId" element={<SecurityPage />} />
+              <Route element={<ProtectedRoute allow={['ADMIN', 'SEGURANCA']} />}>
+                <Route path="/security" element={<SecurityPage />} />
+                <Route path="/security/:locationId" element={<SecurityPage />} />
+              </Route>
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="*" element={<HomeRedirect />} />
             </Route>

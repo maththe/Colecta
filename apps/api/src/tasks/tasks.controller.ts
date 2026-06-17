@@ -28,13 +28,23 @@ type AuthenticatedRequest = Request & {
   };
 };
 
+const TASK_VIEWER_ROLES = [UserRole.ADMIN, ...EMPLOYEE_ROLES];
+
 @Controller('tasks')
 export class TasksController {
   constructor(private readonly service: TasksService) {}
 
   @Get()
-  findAll(@Req() req: Request) {
-    return this.service.findAll(getTenantUuid(req));
+  findAll(@Req() req: AuthenticatedRequest) {
+    return this.service.findAll(getTenantUuid(req), req.user?.role);
+  }
+
+  // Marcadores de tarefa do mapa: filtrados por equipe no servidor. Precisa vir
+  // antes de ':id' para não ser capturado pela rota com parâmetro.
+  @Get('map')
+  @Roles(...TASK_VIEWER_ROLES)
+  findMapTasks(@Req() req: AuthenticatedRequest) {
+    return this.service.findMapTasks(getTenantUuid(req), req.user?.role);
   }
 
   @Get(':id')

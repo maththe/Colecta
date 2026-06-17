@@ -385,6 +385,56 @@ async function seedTenant(cfg: TenantSeed): Promise<void> {
     ],
   });
 
+  // Tarefas posicionadas livremente no mapa (lat/lng próprias, sem vínculo a
+  // lixeira/posição). Servem para validar os marcadores de tarefa e a regra de
+  // visibilidade por equipe. Espalhadas a partir do centro do parque.
+  const mapAnchor = cfg.locations[0];
+  const cleaner = employees.find((e) => e.role === UserRole.LIMPEZA);
+  const maintainer = employees.find((e) => e.role === UserRole.MANUTENCAO);
+  const guard = employees.find((e) => e.role === UserRole.SEGURANCA);
+  await prisma.task.createMany({
+    data: [
+      {
+        tenantUuid: TENANT,
+        title: 'Recolher entulho relatado por visitante',
+        description: 'Ponto marcado no mapa pelo admin; sem lixeira por perto.',
+        status: TaskStatus.pending,
+        priority: TaskPriority.high,
+        latitude: mapAnchor.lat + 0.0009,
+        longitude: mapAnchor.lon + 0.0011,
+        assigneeRole: UserRole.LIMPEZA,
+        assigneeName: cleaner?.name ?? null,
+        dueDate: new Date(now.getTime() + 6 * HOUR_MS),
+      },
+      {
+        tenantUuid: TENANT,
+        title: 'Avaliar poste de iluminação danificado',
+        description: 'Local marcado no mapa para inspeção da manutenção.',
+        status: TaskStatus.in_progress,
+        priority: TaskPriority.medium,
+        latitude: mapAnchor.lat - 0.0012,
+        longitude: mapAnchor.lon + 0.0007,
+        startedById: maintainer?.id,
+        startedAt: new Date(now.getTime() - 1 * HOUR_MS),
+        assigneeRole: UserRole.MANUTENCAO,
+        assigneeName: maintainer?.name ?? null,
+        dueDate: new Date(now.getTime() + 1 * DAY_MS),
+      },
+      {
+        tenantUuid: TENANT,
+        title: 'Rondar área sem cobertura de câmera',
+        description: 'Ponto cego marcado no mapa para a equipe de segurança.',
+        status: TaskStatus.pending,
+        priority: TaskPriority.urgent,
+        latitude: mapAnchor.lat + 0.0006,
+        longitude: mapAnchor.lon - 0.0013,
+        assigneeRole: UserRole.SEGURANCA,
+        assigneeName: guard?.name ?? null,
+        dueDate: new Date(now.getTime() + 3 * HOUR_MS),
+      },
+    ],
+  });
+
   console.log(
     `  Seed de "${cfg.companyName}" concluído: ${bins.length} lixeiras, ${cfg.cameras.length} câmeras, ${employees.length} usuários operacionais, ${historyRows.length} tarefas históricas.`,
   );

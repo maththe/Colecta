@@ -51,11 +51,40 @@ export class TasksService {
     private readonly mailer: MailerService,
   ) {}
 
-  async findAll(tenantUuid: string): Promise<TaskWithBin[]> {
+  async findAll(tenantUuid: string, actorRole?: UserRole): Promise<TaskWithBin[]> {
+    // Visibilidade por equipe no servidor: o admin vê todas; o funcionário só as
+    // do próprio papel. Não confiamos no filtro de cliente (board) para isso.
+    const where: Prisma.TaskWhereInput = { tenantUuid };
+    if (actorRole !== UserRole.ADMIN) {
+      where.assigneeRole = actorRole;
+    }
     return this.prisma.task.findMany({
-      where: { tenantUuid },
+      where,
       include: taskInclude,
       orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  /**
+   * Tarefas posicionadas livremente no mapa (com lat/lng próprias) que ainda
+   * estão abertas — concluídas/canceladas somem do mapa. A visibilidade é
+   * resolvida no servidor: o admin vê todas; o funcionário só vê as da sua
+   * equipe (assigneeRole). Não confiamos em filtro de cliente para isso.
+   */
+  async findMapTasks(tenantUuid: string, actorRole?: UserRole): Promise<TaskWithBin[]> {
+    const where: Prisma.TaskWhereInput = {
+      tenantUuid,
+      latitude: { not: null },
+      longitude: { not: null },
+      status: { in: [TaskStatus.pending, TaskStatus.in_progress] },
+    };
+    if (actorRole !== UserRole.ADMIN) {
+      where.assigneeRole = actorRole;
+    }
+    return this.prisma.task.findMany({
+      where,
+      include: taskInclude,
+      orderBy: [{ priority: 'desc' }, { dueDate: 'asc' }, { createdAt: 'desc' }],
     });
   }
 
@@ -83,6 +112,8 @@ export class TasksService {
       assigneeRole: dto.assigneeRole,
       assigneeName: dto.assigneeName ?? null,
       dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+      latitude: dto.latitude ?? null,
+      longitude: dto.longitude ?? null,
       trashBin: dto.trashBinId ? { connect: { id: dto.trashBinId } } : undefined,
       location: dto.locationId ? { connect: { id: dto.locationId } } : undefined,
     };

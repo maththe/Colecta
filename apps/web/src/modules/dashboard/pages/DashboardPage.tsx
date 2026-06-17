@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowRight,
   BatteryLow,
   CheckSquare,
+  ChevronRight,
   ClipboardList,
   Gauge,
   RefreshCw,
@@ -187,6 +188,7 @@ async function fetchDashboard() {
 
 export function DashboardPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const {
     data,
     error,
@@ -307,6 +309,7 @@ export function DashboardPage() {
           hint={stats.avgFill !== null ? `Preenchimento médio: ${stats.avgFill}%` : 'Cadastradas no sistema'}
           Icon={Trash2}
           tone="primary"
+          to="/bins"
         />
         <StatCard
           label="Lixeiras cheias"
@@ -314,6 +317,7 @@ export function DashboardPage() {
           hint={stats.totalBins ? `${fullPct}% da frota precisa de coleta` : 'Precisam de coleta'}
           Icon={AlertTriangle}
           tone="destructive"
+          to="/bins"
         />
         <StatCard
           label="Bateria baixa"
@@ -321,6 +325,7 @@ export function DashboardPage() {
           hint={stats.offlineBins > 0 ? `${stats.offlineBins} offline` : 'Sensores ≤ 15%'}
           Icon={stats.offlineBins > 0 ? WifiOff : BatteryLow}
           tone="warning"
+          to="/bins"
         />
         <StatCard
           label="Tarefas pendentes"
@@ -332,6 +337,7 @@ export function DashboardPage() {
           }
           Icon={stats.overdueTasks > 0 ? AlertTriangle : ClipboardList}
           tone={stats.overdueTasks > 0 ? 'destructive' : 'info'}
+          to="/tasks"
         />
       </div>
 
@@ -364,11 +370,16 @@ export function DashboardPage() {
                     <TableHead>Preenchimento</TableHead>
                     <TableHead>Bateria</TableHead>
                     <TableHead>Última leitura</TableHead>
+                    <TableHead className="w-8" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {attentionBins.map((b) => (
-                    <TableRow key={b.id}>
+                    <TableRow
+                      key={b.id}
+                      onClick={() => navigate(`/map?bin=${b.id}`)}
+                      className="group cursor-pointer"
+                    >
                       <TableCell>
                         <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
                           {b.code}
@@ -386,6 +397,9 @@ export function DashboardPage() {
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {formatRelativeTime(b.lastSeenAt)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        <ChevronRight className="h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
                       </TableCell>
                     </TableRow>
                   ))}
@@ -419,13 +433,18 @@ export function DashboardPage() {
                     <TableHead>Status</TableHead>
                     <TableHead>Prioridade</TableHead>
                     <TableHead>Prazo</TableHead>
+                    <TableHead className="w-8" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {upcomingTasks.map((t) => {
                     const overdue = isOverdue(t.dueDate);
                     return (
-                      <TableRow key={t.id}>
+                      <TableRow
+                        key={t.id}
+                        onClick={() => navigate(`/tasks?task=${t.id}`)}
+                        className="group cursor-pointer"
+                      >
                         <TableCell className="font-medium">
                           <div className="flex flex-col">
                             <span>{t.title}</span>
@@ -458,6 +477,9 @@ export function DashboardPage() {
                         >
                           {t.dueDate ? formatDueDate(t.dueDate) : '—'}
                           {overdue && <span className="ml-1">(atrasada)</span>}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          <ChevronRight className="h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
                         </TableCell>
                       </TableRow>
                     );

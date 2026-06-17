@@ -109,7 +109,11 @@
       "Bash(grep -rln \"SecurityCamera\" src/types*)",
       "PowerShell(Set-Location \"C:\\\\Users\\\\mathe\\\\Projetos\\\\Colecta\\\\apps\\\\web\"; npx tsc -b 2>&1 | Select-Object -Last 15; \"exit: $LASTEXITCODE\")",
       "Bash(echo \"exit $?\")",
-      "PowerShell(Set-Location \"C:\\\\Users\\\\mathe\\\\Projetos\\\\Colecta\\\\apps\\\\web\"; npx tsc -b 2>&1 | Select-Object -Last 20; \"exit: $LASTEXITCODE\")"
+      "PowerShell(Set-Location \"C:\\\\Users\\\\mathe\\\\Projetos\\\\Colecta\\\\apps\\\\web\"; npx tsc -b 2>&1 | Select-Object -Last 20; \"exit: $LASTEXITCODE\")",
+      "Bash(echo \"API_DONE_EXIT_$?\")",
+      "Bash(echo \"WEB_DONE_EXIT_$?\")",
+      "Bash(echo \"TS_EXIT_$?\")",
+      "Bash(echo \"WEB_EXIT_$?\")"
     ]
   }
 }

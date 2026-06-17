@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -546,24 +547,29 @@ export function AnalyticsPage() {
 
       {/* Highlight card - most active bin */}
       {topBin && (
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="flex items-center gap-4 pt-5 pb-5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-              <Trash2 className="h-5 w-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold">
-                Lixeira mais demandada no período:{' '}
-                <span className="font-mono">{topBin.code}</span> — {topBin.name}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {topBin.completed} tarefas concluídas
-                {topBin.pending > 0 && ` · ${topBin.pending} em aberto`}
-              </p>
-            </div>
-            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-          </CardContent>
-        </Card>
+        <Link
+          to={`/map?bin=${topBin.binId}`}
+          className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Card className="border-primary/20 bg-primary/5 ring-primary/20 transition-all hover:-translate-y-0.5 hover:shadow-md hover:ring-primary/40">
+            <CardContent className="flex items-center gap-4 pt-5 pb-5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">
+                  Lixeira mais demandada no período:{' '}
+                  <span className="font-mono">{topBin.code}</span> — {topBin.name}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {topBin.completed} tarefas concluídas
+                  {topBin.pending > 0 && ` · ${topBin.pending} em aberto`}
+                </p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+            </CardContent>
+          </Card>
+        </Link>
       )}
     </div>
   );

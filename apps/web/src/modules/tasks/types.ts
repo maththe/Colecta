@@ -15,6 +15,9 @@ export interface Task {
   locationId: string | null;
   location: { id: string; name: string; latitude: number; longitude: number } | null;
   cameraId: string | null;
+  // Coordenadas próprias quando a tarefa foi posicionada livremente no mapa.
+  latitude: number | null;
+  longitude: number | null;
   assigneeRole: UserRole;
   assigneeName: string | null;
   dueDate: string | null;
@@ -32,6 +35,8 @@ export interface CreateTaskInput {
   priority?: TaskPriority;
   trashBinId?: string | null;
   locationId?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   assigneeRole: UserRole;
   assigneeName?: string | null;
   dueDate?: string | null;

@@ -1,9 +1,15 @@
 import { useEffect, useRef } from 'react';
-import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { Plus } from 'lucide-react';
-import type { Location, SecurityCamera, TrashBin } from '@/types';
-import { CAMERA_STATUS_LABELS, TRASH_BIN_STATUS_LABELS } from '@/types';
+import { Eye, Plus } from 'lucide-react';
+import type { Location, SecurityCamera, Task, TrashBin } from '@/types';
+import {
+  CAMERA_STATUS_LABELS,
+  TASK_PRIORITY_LABELS,
+  TASK_STATUS_LABELS,
+  TRASH_BIN_STATUS_LABELS,
+  USER_ROLE_LABELS,
+} from '@/types';
 import { formatCoord, formatRelativeTime } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +19,7 @@ import {
   MARKER_ICONS,
   spreadBins,
   STATUS_COLOR,
+  TASK_COLOR,
 } from './map-markers';
 
 // Provider-agnostic map wrapper. The MVP uses Leaflet + OpenStreetMap;
@@ -26,23 +33,61 @@ interface Props {
   locations?: Location[];
   /** Câmeras de segurança (exibidas como marcadores roxos). */
   cameras?: SecurityCamera[];
+  /** Tarefas posicionadas no mapa (com lat/lng próprias), abertas. */
+  tasks?: Task[];
+  /** Abre os detalhes de uma tarefa a partir do seu marcador. */
+  onSelectTask?: (task: Task) => void;
+  /** Quando ativo, um clique no mapa dispara `onPickPoint` em vez de navegar. */
+  picking?: boolean;
+  /** Coordenada escolhida ao clicar no mapa no modo de seleção. */
+  onPickPoint?: (latitude: number, longitude: number) => void;
   onCreateTask?: (bin: TrashBin) => void;
   /** Abre o formulário de tarefa para uma posição (marcador azul). */
   onCreateTaskForLocation?: (location: Location) => void;
   /** Abre o formulário de tarefa para uma câmera (marcador roxo). */
   onCreateTaskForCamera?: (camera: SecurityCamera) => void;
+  /** Abre o modal com a imagem ao vivo da câmera. */
+  onViewCameraImage?: (camera: SecurityCamera) => void;
   /** When set, the map flies to this bin and opens its popup. */
   focusBinId?: string | null;
   /** When set, the map flies to this location and opens its popup. */
   focusLocationId?: string | null;
   /** When set, the map flies to this camera and opens its popup. */
   focusCameraId?: string | null;
+  /** When set, the map flies to this task marker and opens its popup. */
+  focusTaskId?: string | null;
 }
 
 // Marker ref keys: bins use their id, locations use a `loc-` prefix e câmeras
 // um `cam-` para que os espaços de id nunca colidam no ref compartilhado.
 const locationKey = (id: string) => `loc-${id}`;
 const cameraKey = (id: string) => `cam-${id}`;
+const taskKey = (id: string) => `task-${id}`;
+
+// Captura cliques no mapa apenas quando o modo de seleção está ativo, para
+// posicionar uma nova tarefa. Fora desse modo o mapa pan/zoom normalmente.
+function MapClickHandler({
+  picking,
+  onPickPoint,
+}: {
+  picking?: boolean;
+  onPickPoint?: (latitude: number, longitude: number) => void;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    container.style.cursor = picking ? 'crosshair' : '';
+    return () => {
+      container.style.cursor = '';
+    };
+  }, [map, picking]);
+  useMapEvents({
+    click(event) {
+      if (picking) onPickPoint?.(event.latlng.lat, event.latlng.lng);
+    },
+  });
+  return null;
+}
 
 // Drives the camera to a target bin/location and opens its popup when the
 // focus id changes. Lives inside MapContainer so it can access the map.
@@ -72,12 +117,18 @@ export function TrashBinMap({
   center,
   locations = [],
   cameras = [],
+  tasks = [],
+  onSelectTask,
+  picking,
+  onPickPoint,
   onCreateTask,
   onCreateTaskForLocation,
   onCreateTaskForCamera,
+  onViewCameraImage,
   focusBinId,
   focusLocationId,
   focusCameraId,
+  focusTaskId,
 }: Props) {
   const markerRefs = useRef<Record<string, L.Marker | null>>({});
 
@@ -94,6 +145,12 @@ export function TrashBinMap({
       const loc = locations.find((l) => l.id === focusLocationId);
       if (loc) return { key: locationKey(loc.id), lat: loc.latitude, lng: loc.longitude };
     }
+    if (focusTaskId) {
+      const t = tasks.find((item) => item.id === focusTaskId);
+      if (t && t.latitude !== null && t.longitude !== null) {
+        return { key: taskKey(t.id), lat: t.latitude, lng: t.longitude };
+      }
+    }
     return null;
   })();
 
@@ -109,6 +166,7 @@ export function TrashBinMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       />
       <MapFocus target={focusTarget} markerRefs={markerRefs} />
+      <MapClickHandler picking={picking} onPickPoint={onPickPoint} />
       {locations.map((location) => (
         <Marker
           key={locationKey(location.id)}
@@ -186,6 +244,18 @@ export function TrashBinMap({
             <p style={{ fontSize: 12, margin: '2px 0' }}><strong>Local:</strong> {camera.locationName}</p>
             <p style={{ fontSize: 12, margin: '2px 0' }}><strong>IP:</strong> {camera.ipAddress}</p>
             <p style={{ fontSize: 12, margin: '2px 0' }}><strong>Última leitura:</strong> {formatRelativeTime(camera.lastSeenAt)}</p>
+            {onViewCameraImage && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-2 w-full"
+                onClick={() => onViewCameraImage(camera)}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Visualizar imagem
+              </Button>
+            )}
             {onCreateTaskForCamera && (
               <Button
                 type="button"
@@ -200,6 +270,42 @@ export function TrashBinMap({
           </Popup>
         </Marker>
       ))}
+      {tasks.map((task) =>
+        task.latitude === null || task.longitude === null ? null : (
+          <Marker
+            key={taskKey(task.id)}
+            position={[task.latitude, task.longitude]}
+            icon={buildMarkerIcon(TASK_COLOR[task.priority], MARKER_ICONS.task)}
+            ref={(ref) => {
+              markerRefs.current[taskKey(task.id)] = ref;
+            }}
+          >
+            <Popup>
+              <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{task.title}</p>
+              <p style={{ fontSize: 12, margin: '2px 0' }}>
+                <strong>Prioridade:</strong> {TASK_PRIORITY_LABELS[task.priority]}
+              </p>
+              <p style={{ fontSize: 12, margin: '2px 0' }}>
+                <strong>Status:</strong> {TASK_STATUS_LABELS[task.status]}
+              </p>
+              <p style={{ fontSize: 12, margin: '2px 0' }}>
+                <strong>Equipe:</strong> {USER_ROLE_LABELS[task.assigneeRole]}
+                {task.assigneeName ? ` — ${task.assigneeName}` : ''}
+              </p>
+              {onSelectTask && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="mt-2 w-full"
+                  onClick={() => onSelectTask(task)}
+                >
+                  Ver tarefa
+                </Button>
+              )}
+            </Popup>
+          </Marker>
+        ),
+      )}
     </MapContainer>
   );
 }

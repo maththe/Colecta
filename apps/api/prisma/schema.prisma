@@ -194,6 +194,10 @@ model Task {
   location     Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
   cameraId     String?      @db.Uuid
   camera       Camera?      @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+  // Coordenadas próprias para tarefas posicionadas livremente no mapa (sem
+  // vínculo a lixeira/posição/câmera). Preenchidas juntas ou ambas nulas.
+  latitude     Float?
+  longitude    Float?
   assigneeRole UserRole
   assigneeName String?
   dueDate      DateTime?

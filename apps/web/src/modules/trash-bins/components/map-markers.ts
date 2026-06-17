@@ -1,5 +1,5 @@
 import L from 'leaflet';
-import type { SecurityCamera, TrashBin, TrashBinStatus } from '@/types';
+import type { SecurityCamera, TaskPriority, TrashBin, TrashBinStatus } from '@/types';
 
 // Cores e ícones compartilhados por todos os mapas (mapa principal e a página
 // "Adicionar no mapa"), para que os marcadores sigam exatamente o mesmo padrão
@@ -23,6 +23,14 @@ export const CAMERA_COLOR: Record<SecurityCamera['status'], string> = {
   maintenance: '#d97706',
 };
 
+// Tarefas posicionadas no mapa: cor por prioridade para destacar urgências.
+export const TASK_COLOR: Record<TaskPriority, string> = {
+  low: '#0d9488',
+  medium: '#0891b2',
+  high: '#ea580c',
+  urgent: '#dc2626',
+};
+
 // Ícones (traçado lucide) usados no centro de cada marcador. Todos compartilham
 // o mesmo viewBox 24x24 e são renderizados em branco sobre o círculo colorido.
 export const MARKER_ICONS = {
@@ -38,6 +46,10 @@ export const MARKER_ICONS = {
   // MapPin
   location: `<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
     <circle cx="12" cy="10" r="3"/>`,
+  // ClipboardList
+  task: `<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/>
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+    <path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>`,
 } as const;
 
 // Marcador padrão único: círculo colorido (cor = status/categoria) com o ícone

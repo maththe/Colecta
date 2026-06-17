@@ -30,7 +30,8 @@ export function CameraPreviewDialog({
 }: {
   camera: SecurityCamera | null;
   onClose: () => void;
-  onReport: (camera: SecurityCamera) => void;
+  /** Opcional: quando omitido (ex.: no mapa), o botão de ocorrência some. */
+  onReport?: (camera: SecurityCamera) => void;
 }) {
   return (
     <Dialog open={!!camera} onOpenChange={(open) => !open && onClose()}>
@@ -70,16 +71,23 @@ export function CameraPreviewDialog({
                     />
                   </div>
                 </div>
+                {onReport && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => onReport(camera)}
+                    className="mt-auto"
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    Relatar ocorrência
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => onReport(camera)}
-                  className="mt-auto"
+                  onClick={onClose}
+                  className={cn(!onReport && 'mt-auto')}
                 >
-                  <AlertTriangle className="h-4 w-4" />
-                  Relatar ocorrência
-                </Button>
-                <Button type="button" variant="secondary" onClick={onClose}>
                   Fechar visualização
                 </Button>
               </aside>
