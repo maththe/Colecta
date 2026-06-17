@@ -35,6 +35,7 @@ export interface CreateTaskInput {
   priority?: TaskPriority;
   trashBinId?: string | null;
   locationId?: string | null;
+  cameraId?: string | null;
   latitude?: number | null;
   longitude?: number | null;
   assigneeRole: UserRole;

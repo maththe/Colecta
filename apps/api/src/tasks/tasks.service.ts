@@ -100,6 +100,7 @@ export class TasksService {
   async create(dto: CreateTaskDto, tenantUuid: string): Promise<TaskWithBin> {
     if (dto.trashBinId) await this.assertTrashBinExists(dto.trashBinId, tenantUuid);
     if (dto.locationId) await this.assertLocationExists(dto.locationId, tenantUuid);
+    if (dto.cameraId) await this.assertCameraExists(dto.cameraId, tenantUuid);
     this.assertAssigneeRole(dto.assigneeRole);
     this.assertTrashBinAssigneeRole(dto.trashBinId, dto.assigneeRole);
 
@@ -116,6 +117,7 @@ export class TasksService {
       longitude: dto.longitude ?? null,
       trashBin: dto.trashBinId ? { connect: { id: dto.trashBinId } } : undefined,
       location: dto.locationId ? { connect: { id: dto.locationId } } : undefined,
+      camera: dto.cameraId ? { connect: { id: dto.cameraId } } : undefined,
     };
 
     const created = await this.prisma.task.create({ data, include: taskInclude });

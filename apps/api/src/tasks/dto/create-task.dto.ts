@@ -39,6 +39,10 @@ export class CreateTaskDto {
   @IsUUID()
   locationId?: string | null;
 
+  @IsOptional()
+  @IsUUID()
+  cameraId?: string | null;
+
   // Coordenadas para tarefa posicionada livremente no mapa. As duas precisam vir
   // juntas: se uma for informada, a outra passa a ser obrigatória.
   @ValidateIf((o: CreateTaskDto) => o.longitude !== undefined && o.longitude !== null)

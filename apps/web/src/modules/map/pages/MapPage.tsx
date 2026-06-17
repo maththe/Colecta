@@ -376,6 +376,7 @@ export function MapPage() {
         ...values,
         trashBinId: values.trashBinId ?? selectedBin?.id ?? null,
         locationId: values.locationId ?? selectedLocation?.id ?? null,
+        cameraId: selectedCamera?.id ?? null,
       });
       createdTaskId = created.id;
       closeTaskModal();
