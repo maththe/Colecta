@@ -32,6 +32,10 @@ export class CreateSecurityOccurrenceDto {
   @IsUUID()
   locationId?: string | null;
 
+  @IsOptional()
+  @IsUUID()
+  cameraId?: string | null;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(80)

@@ -25,6 +25,9 @@ export interface SecurityCamera {
   ipAddress: string;
   resolution: string;
   fps: number;
+  /** Posição da câmera no mapa. */
+  latitude: number;
+  longitude: number;
   lastSeenAt: string | null;
   imageUrl: string;
   notes?: string;

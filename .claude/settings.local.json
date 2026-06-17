@@ -88,7 +88,28 @@
       "Bash(sed -i \"s|'\\\\.\\\\./components/TrashBinMap'|'@/modules/trash-bins/components/TrashBinMap'|g\" modules/map/pages/MapPage.tsx)",
       "Bash(git grep *)",
       "Bash(npx eslint *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Read(//c/c/Users/mathe/Projetos/Colecta/apps/web/src/modules/tasks/**)",
+      "Read(//c/c/Users/mathe/Projetos/Colecta/apps/web/src/modules/**)",
+      "Bash(grep -n \"replace\\(/\\\\[\" apps/web/src/modules/security/lib/occurrence-link.ts)",
+      "PowerShell(pnpm *)",
+      "PowerShell(docker ps *)",
+      "Bash(find apps/api -iname \"*.prisma\")",
+      "Bash(find apps/api -iname \"*.sqlite\" -o -iname \"*.db\")",
+      "Bash(npx ts-node *)",
+      "Bash(node -e \"const s=require\\('./package.json'\\).scripts; console.log\\(JSON.stringify\\(s,null,2\\)\\)\")",
+      "Bash(echo \"API iniciando em background \\(PID shell $!\\)\")",
+      "Bash(curl -s -X POST http://localhost:3333/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@colecta.com\",\"password\":\"admin123\"}')",
+      "Bash(echo \" *)",
+      "Bash(grep -iA8 \"error\\\\|exception\")",
+      "Bash(curl -s -X POST http://localhost:3333/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@colecta.com\",\"senha\":\"admin123\"}')",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('react-leaflet', p.dependencies['react-leaflet']\\); console.log\\('leaflet', p.dependencies['leaflet']\\)\")",
+      "Bash(node *)",
+      "Bash(grep -rn \"CAMERA_STATUS_LABELS\\\\|SecurityCamera\" src/types.ts)",
+      "Bash(grep -rln \"SecurityCamera\" src/types*)",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\mathe\\\\Projetos\\\\Colecta\\\\apps\\\\web\"; npx tsc -b 2>&1 | Select-Object -Last 15; \"exit: $LASTEXITCODE\")",
+      "Bash(echo \"exit $?\")",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\mathe\\\\Projetos\\\\Colecta\\\\apps\\\\web\"; npx tsc -b 2>&1 | Select-Object -Last 20; \"exit: $LASTEXITCODE\")"
     ]
   }
 }

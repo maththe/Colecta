@@ -1,8 +1,8 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   EMPLOYEE_USER_ROLES,
   TASK_PRIORITY_LABELS,
-  TASK_STATUS_LABELS,
   USER_ROLE_LABELS,
   type CreateTaskInput,
   type Location,
@@ -17,7 +17,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { FilterChips } from '@/components/ui/filter-chips';
 import { MapPin, Trash2 } from 'lucide-react';
+
+// Tipo de vínculo da tarefa: uma lixeira, uma posição, ou nenhum. Substitui os
+// dois selects que se desabilitavam mutuamente por uma escolha explícita.
+type LinkType = 'bin' | 'location' | 'none';
 
 // When the form is opened from the map for a specific marker, the link is
 // already fixed by what the user clicked. The `target` describes that marker
@@ -90,21 +95,50 @@ export function TaskForm({
         initial?.trashBinId || defaults?.trashBinId
           ? ''
           : initial?.locationId ?? defaults?.locationId ?? '',
-      assigneeRole: initial?.assigneeRole ?? defaults?.assigneeRole ?? '',
+      assigneeRole:
+        target?.kind === 'bin'
+          ? 'LIMPEZA'
+          : initial?.assigneeRole ?? defaults?.assigneeRole ?? '',
       assigneeName: initial?.assigneeName ?? defaults?.assigneeName ?? '',
       dueDate: toLocalInput(initial?.dueDate ?? defaults?.dueDate),
     },
   });
 
   const selectedTrashBinId = watch('trashBinId');
-  const selectedLocationId = watch('locationId');
   const selectedAssigneeRole = watch('assigneeRole');
+
+  // Vínculo inicial derivado do que já vem preenchido (edição ou pré-seleção).
+  const [linkType, setLinkType] = useState<LinkType>(
+    initial?.trashBinId || defaults?.trashBinId
+      ? 'bin'
+      : initial?.locationId || defaults?.locationId
+        ? 'location'
+        : 'none',
+  );
+
+  const linkOptions: { value: LinkType; label: string }[] = [
+    { value: 'bin', label: 'Lixeira' },
+    ...(locations.length > 0 ? [{ value: 'location' as const, label: 'Posição' }] : []),
+    { value: 'none', label: 'Nenhum' },
+  ];
+
+  // Ao trocar o tipo de vínculo, limpamos o id do outro tipo para o payload
+  // nunca carregar os dois ao mesmo tempo.
+  function changeLinkType(next: LinkType) {
+    setLinkType(next);
+    if (next !== 'bin') setValue('trashBinId', '');
+    if (next !== 'location') setValue('locationId', '');
+  }
+  // Tarefas vinculadas a uma lixeira são obrigatoriamente do time de limpeza.
+  const binLinked = target?.kind === 'bin' || !!selectedTrashBinId;
   const eligibleUsers = selectedAssigneeRole
     ? users.filter((user) => user.role === selectedAssigneeRole)
     : users.filter((user) => user.role !== 'ADMIN');
   const isEditing = Boolean(initial);
   const submit = handleSubmit((values) => {
-    if (!values.assigneeRole) return;
+    // Garante a regra mesmo que o campo travado seja burlado no cliente.
+    const assigneeRole = binLinked ? 'LIMPEZA' : values.assigneeRole;
+    if (!assigneeRole) return;
     const trimmedDesc = values.description?.trim() ?? '';
     const trimmedAssignee = values.assigneeName?.trim() ?? '';
     // When the form is bound to a map marker, the link is fixed by `target`
@@ -125,7 +159,7 @@ export function TaskForm({
       priority: values.priority,
       trashBinId: link.trashBinId,
       locationId: link.locationId,
-      assigneeRole: values.assigneeRole,
+      assigneeRole,
       assigneeName: trimmedAssignee ? trimmedAssignee : isEditing ? null : undefined,
       dueDate: values.dueDate
         ? new Date(values.dueDate).toISOString()
@@ -153,27 +187,15 @@ export function TaskForm({
         <Textarea id="task-desc" rows={3} {...register('description')} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="task-status">Status</Label>
-          <select id="task-status" className={selectClass} {...register('status')}>
-            {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="task-priority">Prioridade</Label>
-          <select id="task-priority" className={selectClass} {...register('priority')}>
-            {Object.entries(TASK_PRIORITY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="task-priority">Prioridade</Label>
+        <select id="task-priority" className={selectClass} {...register('priority')}>
+          {Object.entries(TASK_PRIORITY_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {target ? (
@@ -197,55 +219,50 @@ export function TaskForm({
           </div>
         </div>
       ) : (
-        <>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="task-bin">Lixeira relacionada</Label>
+        <div className="flex flex-col gap-1.5">
+          <Label>Vínculo</Label>
+          <FilterChips options={linkOptions} value={linkType} onChange={changeLinkType} />
+
+          {linkType === 'bin' && (
             <select
               id="task-bin"
-              className={selectClass}
-              disabled={!!selectedLocationId}
+              aria-label="Lixeira relacionada"
+              className={`${selectClass} mt-1`}
               {...register('trashBinId', {
                 onChange: (event) => {
                   if ((event.target as HTMLSelectElement).value) {
-                    setValue('locationId', '');
+                    // Lixeira sempre vai para o time de limpeza.
+                    setValue('assigneeRole', 'LIMPEZA');
+                    setValue('assigneeName', '');
                   }
                 },
               })}
             >
-              <option value="">— Nenhuma —</option>
+              <option value="">— Selecione a lixeira —</option>
               {bins.map((bin) => (
                 <option key={bin.id} value={bin.id}>
                   {bin.code} — {bin.name}
                 </option>
               ))}
             </select>
-          </div>
-
-          {locations.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="task-location">Posição relacionada</Label>
-              <select
-                id="task-location"
-                className={selectClass}
-                disabled={!!selectedTrashBinId}
-                {...register('locationId', {
-                  onChange: (event) => {
-                    if ((event.target as HTMLSelectElement).value) {
-                      setValue('trashBinId', '');
-                    }
-                  },
-                })}
-              >
-                <option value="">— Nenhuma —</option>
-                {locations.map((location) => (
-                  <option key={location.id} value={location.id}>
-                    {location.name}
-                  </option>
-                ))}
-              </select>
-            </div>
           )}
-        </>
+
+          {linkType === 'location' && (
+            <select
+              id="task-location"
+              aria-label="Posição relacionada"
+              className={`${selectClass} mt-1`}
+              {...register('locationId')}
+            >
+              <option value="">— Selecione a posição —</option>
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -255,6 +272,7 @@ export function TaskForm({
             id="task-assignee-role"
             className={selectClass}
             aria-invalid={!!errors.assigneeRole}
+            disabled={binLinked}
             {...register('assigneeRole', {
               required: 'Selecione o tipo de funcionário',
               onChange: () => setValue('assigneeName', ''),
@@ -267,8 +285,14 @@ export function TaskForm({
               </option>
             ))}
           </select>
-          {errors.assigneeRole && (
-            <p className="text-xs text-destructive">{errors.assigneeRole.message}</p>
+          {binLinked ? (
+            <p className="text-xs text-muted-foreground">
+              Tarefas de lixeira são sempre do time de limpeza.
+            </p>
+          ) : (
+            errors.assigneeRole && (
+              <p className="text-xs text-destructive">{errors.assigneeRole.message}</p>
+            )
           )}
         </div>
         <div className="flex flex-col gap-1.5">

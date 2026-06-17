@@ -14,6 +14,7 @@ export interface Task {
   trashBin: { id: string; name: string; code: string } | null;
   locationId: string | null;
   location: { id: string; name: string; latitude: number; longitude: number } | null;
+  cameraId: string | null;
   assigneeRole: UserRole;
   assigneeName: string | null;
   dueDate: string | null;
@@ -42,6 +43,7 @@ export interface CreateSecurityOccurrenceInput {
   priority?: TaskPriority;
   trashBinId?: string | null;
   locationId?: string | null;
+  cameraId?: string | null;
   cameraCode: string;
   cameraName: string;
   locationName: string;

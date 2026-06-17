@@ -193,10 +193,12 @@ export function TasksPage() {
             Manutenção, coleta e ações operacionais
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-1 h-4 w-4" />
-          Nova tarefa
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={openCreate}>
+            <Plus className="mr-1 h-4 w-4" />
+            Nova tarefa
+          </Button>
+        </div>
       </div>
 
       {error && <ErrorState message={error} />}

@@ -11,6 +11,7 @@ import { LocationsPage } from '@/modules/locations/pages/LocationsPage';
 import { TasksPage } from '@/modules/tasks/pages/TasksPage';
 import { AnalyticsPage } from '@/modules/analytics/pages/AnalyticsPage';
 import { SecurityPage } from '@/modules/security/pages/SecurityPage';
+import { FinancePage } from '@/modules/finance/pages/FinancePage';
 
 function HomeRedirect() {
   const { user } = useAuth();
@@ -29,6 +30,7 @@ export function App() {
               <Route element={<ProtectedRoute allow={['ADMIN']} />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/analytics" element={<AnalyticsPage />} />
+                <Route path="/finance" element={<FinancePage />} />
               </Route>
               <Route path="/bins" element={<BinsPage />} />
               <Route path="/locations" element={<LocationsPage />} />

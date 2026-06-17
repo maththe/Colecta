@@ -13,6 +13,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "prisma db seed",
+    "db:create-users": "ts-node --transpile-only scripts/create-users.ts",
     "prisma:reset": "prisma migrate reset --force",
     "typecheck": "tsc --noEmit"
   },

@@ -15,6 +15,12 @@ enum TrashBinStatus {
   offline
 }
 
+enum CameraStatus {
+  online
+  offline
+  maintenance
+}
+
 enum TaskStatus {
   pending
   in_progress
@@ -89,6 +95,7 @@ model TrashBin {
 
   sensorReadings SensorReading[]
   tasks          Task[]
+  cameras        Camera[]
 
   @@unique([tenantUuid, code])
   @@index([tenantUuid])
@@ -110,10 +117,42 @@ model Location {
 
   trashBins TrashBin[]
   tasks     Task[]
+  cameras   Camera[]
 
   @@index([tenantUuid])
   @@index([tenantUuid, name])
   @@map("locations")
+}
+
+model Camera {
+  id          String       @id @default(uuid()) @db.Uuid
+  tenantUuid  String
+  code        String
+  name        String
+  status      CameraStatus @default(online)
+  model       String
+  ipAddress   String
+  resolution  String
+  fps         Int
+  latitude    Float
+  longitude   Float
+  imageUrl    String?
+  notes       String?
+  lastSeenAt  DateTime?
+  locationId  String?      @db.Uuid
+  location    Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  trashBinId  String?      @db.Uuid
+  trashBin    TrashBin?    @relation(fields: [trashBinId], references: [id], onDelete: SetNull)
+  tasks       Task[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([tenantUuid, code])
+  @@index([tenantUuid])
+  @@index([locationId])
+  @@index([trashBinId])
+  @@index([status])
+  @@map("cameras")
 }
 
 model SensorReading {
@@ -153,6 +192,8 @@ model Task {
   trashBin     TrashBin?    @relation(fields: [trashBinId], references: [id], onDelete: SetNull)
   locationId   String?      @db.Uuid
   location     Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  cameraId     String?      @db.Uuid
+  camera       Camera?      @relation(fields: [cameraId], references: [id], onDelete: SetNull)
   assigneeRole UserRole
   assigneeName String?
   dueDate      DateTime?
@@ -170,6 +211,7 @@ model Task {
   @@index([trashBinId])
   @@index([locationId])
   @@index([assigneeRole])
+  @@index([cameraId])
   @@index([tenantUuid, trashBinId, kind, status])
   @@index([tenantUuid, completedAt])
   @@map("tasks")

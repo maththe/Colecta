@@ -1,9 +1,12 @@
 import type { Task, TaskPriority, TaskStatus } from '@/types';
 
-// Deep-link to the map focused on the task's bin or position.
-// Bins take precedence (a bin already carries its own location);
-// returns null when the task has neither.
+// Deep-link to the map focused on the task's origin.
+// A câmera tem precedência: ocorrências de segurança devem focar o ponto exato
+// da câmera (e não a posição/lixeira vinculada, que fica em outro lugar).
+// Depois vem a lixeira (que já carrega sua própria posição) e a posição.
+// Retorna null quando a tarefa não tem nenhum vínculo geográfico.
 export function taskMapHref(task: Task): string | null {
+  if (task.cameraId) return `/map?camera=${task.cameraId}`;
   if (task.trashBin) return `/map?bin=${task.trashBin.id}`;
   if (task.location) return `/map?location=${task.location.id}`;
   return null;

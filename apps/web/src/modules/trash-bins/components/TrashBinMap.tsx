@@ -2,58 +2,47 @@ import { useEffect, useRef } from 'react';
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Plus } from 'lucide-react';
-import type { Location, TrashBin, TrashBinStatus } from '@/types';
-import { TRASH_BIN_STATUS_LABELS } from '@/types';
+import type { Location, SecurityCamera, TrashBin } from '@/types';
+import { CAMERA_STATUS_LABELS, TRASH_BIN_STATUS_LABELS } from '@/types';
 import { formatCoord, formatRelativeTime } from '@/lib/format';
 import { Button } from '@/components/ui/button';
+import {
+  buildMarkerIcon,
+  CAMERA_COLOR,
+  LOCATION_COLOR,
+  MARKER_ICONS,
+  spreadBins,
+  STATUS_COLOR,
+} from './map-markers';
 
 // Provider-agnostic map wrapper. The MVP uses Leaflet + OpenStreetMap;
 // swapping to Google Maps / Mapbox in the future only requires replacing
 // this component's internals — page-level code stays the same.
-
-const STATUS_COLOR: Record<TrashBinStatus, string> = {
-  active: '#16a34a',
-  inactive: '#94a3b8',
-  full: '#dc2626',
-  maintenance: '#d97706',
-  offline: '#475569',
-};
-
-// Posições (localizações) sem lixeira são marcadas em azul.
-const LOCATION_COLOR = '#2563eb';
-
-function buildIcon(color: string): L.DivIcon {
-  return L.divIcon({
-    className: 'colecta-marker',
-    html: `<div style="
-      width:22px;height:22px;border-radius:50%;
-      background:${color};
-      border:3px solid white;
-      box-shadow:0 1px 4px rgba(0,0,0,0.4);
-    "></div>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
-    popupAnchor: [0, -12],
-  });
-}
 
 interface Props {
   bins: TrashBin[];
   center: [number, number];
   /** Posições cadastradas (exibidas como marcadores azuis). */
   locations?: Location[];
+  /** Câmeras de segurança (exibidas como marcadores roxos). */
+  cameras?: SecurityCamera[];
   onCreateTask?: (bin: TrashBin) => void;
   /** Abre o formulário de tarefa para uma posição (marcador azul). */
   onCreateTaskForLocation?: (location: Location) => void;
+  /** Abre o formulário de tarefa para uma câmera (marcador roxo). */
+  onCreateTaskForCamera?: (camera: SecurityCamera) => void;
   /** When set, the map flies to this bin and opens its popup. */
   focusBinId?: string | null;
   /** When set, the map flies to this location and opens its popup. */
   focusLocationId?: string | null;
+  /** When set, the map flies to this camera and opens its popup. */
+  focusCameraId?: string | null;
 }
 
-// Marker ref keys: bins use their id, locations use a `loc-` prefix so the
-// two id spaces never collide in the shared ref map.
+// Marker ref keys: bins use their id, locations use a `loc-` prefix e câmeras
+// um `cam-` para que os espaços de id nunca colidam no ref compartilhado.
 const locationKey = (id: string) => `loc-${id}`;
+const cameraKey = (id: string) => `cam-${id}`;
 
 // Drives the camera to a target bin/location and opens its popup when the
 // focus id changes. Lives inside MapContainer so it can access the map.
@@ -82,14 +71,21 @@ export function TrashBinMap({
   bins,
   center,
   locations = [],
+  cameras = [],
   onCreateTask,
   onCreateTaskForLocation,
+  onCreateTaskForCamera,
   focusBinId,
   focusLocationId,
+  focusCameraId,
 }: Props) {
   const markerRefs = useRef<Record<string, L.Marker | null>>({});
 
   const focusTarget = (() => {
+    if (focusCameraId) {
+      const cam = cameras.find((c) => c.id === focusCameraId);
+      if (cam) return { key: cameraKey(cam.id), lat: cam.latitude, lng: cam.longitude };
+    }
     if (focusBinId) {
       const bin = bins.find((b) => b.id === focusBinId);
       if (bin) return { key: bin.id, lat: bin.latitude, lng: bin.longitude };
@@ -117,7 +113,7 @@ export function TrashBinMap({
         <Marker
           key={locationKey(location.id)}
           position={[location.latitude, location.longitude]}
-          icon={buildIcon(LOCATION_COLOR)}
+          icon={buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.location)}
           ref={(ref) => {
             markerRefs.current[locationKey(location.id)] = ref;
           }}
@@ -144,11 +140,11 @@ export function TrashBinMap({
           </Popup>
         </Marker>
       ))}
-      {bins.map((bin) => (
+      {spreadBins(bins).map(({ bin, position }) => (
         <Marker
           key={bin.id}
-          position={[bin.latitude, bin.longitude]}
-          icon={buildIcon(STATUS_COLOR[bin.status])}
+          position={position}
+          icon={buildMarkerIcon(STATUS_COLOR[bin.status], MARKER_ICONS.bin)}
           ref={(ref) => {
             markerRefs.current[bin.id] = ref;
           }}
@@ -166,6 +162,36 @@ export function TrashBinMap({
                 size="sm"
                 className="mt-2 w-full"
                 onClick={() => onCreateTask(bin)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Definir tarefa
+              </Button>
+            )}
+          </Popup>
+        </Marker>
+      ))}
+      {cameras.map((camera) => (
+        <Marker
+          key={cameraKey(camera.id)}
+          position={[camera.latitude, camera.longitude]}
+          icon={buildMarkerIcon(CAMERA_COLOR[camera.status], MARKER_ICONS.camera)}
+          ref={(ref) => {
+            markerRefs.current[cameraKey(camera.id)] = ref;
+          }}
+        >
+          <Popup>
+            <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{camera.name}</p>
+            <p style={{ fontSize: 12, margin: '2px 0' }}><strong>Código:</strong> {camera.code}</p>
+            <p style={{ fontSize: 12, margin: '2px 0' }}><strong>Status:</strong> {CAMERA_STATUS_LABELS[camera.status]}</p>
+            <p style={{ fontSize: 12, margin: '2px 0' }}><strong>Local:</strong> {camera.locationName}</p>
+            <p style={{ fontSize: 12, margin: '2px 0' }}><strong>IP:</strong> {camera.ipAddress}</p>
+            <p style={{ fontSize: 12, margin: '2px 0' }}><strong>Última leitura:</strong> {formatRelativeTime(camera.lastSeenAt)}</p>
+            {onCreateTaskForCamera && (
+              <Button
+                type="button"
+                size="sm"
+                className="mt-2 w-full"
+                onClick={() => onCreateTaskForCamera(camera)}
               >
                 <Plus className="h-3.5 w-3.5" />
                 Definir tarefa

@@ -72,6 +72,7 @@ export class TasksService {
     if (dto.trashBinId) await this.assertTrashBinExists(dto.trashBinId, tenantUuid);
     if (dto.locationId) await this.assertLocationExists(dto.locationId, tenantUuid);
     this.assertAssigneeRole(dto.assigneeRole);
+    this.assertTrashBinAssigneeRole(dto.trashBinId, dto.assigneeRole);
 
     const data: Prisma.TaskCreateInput = {
       tenantUuid,
@@ -97,6 +98,7 @@ export class TasksService {
   ): Promise<TaskWithBin> {
     if (dto.trashBinId) await this.assertTrashBinExists(dto.trashBinId, tenantUuid);
     if (dto.locationId) await this.assertLocationExists(dto.locationId, tenantUuid);
+    if (dto.cameraId) await this.assertCameraExists(dto.cameraId, tenantUuid);
 
     const created = await this.prisma.task.create({
       data: {
@@ -111,6 +113,7 @@ export class TasksService {
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
         trashBin: dto.trashBinId ? { connect: { id: dto.trashBinId } } : undefined,
         location: dto.locationId ? { connect: { id: dto.locationId } } : undefined,
+        camera: dto.cameraId ? { connect: { id: dto.cameraId } } : undefined,
       },
       include: taskInclude,
     });
@@ -131,6 +134,16 @@ export class TasksService {
 
     if (dto.trashBinId) await this.assertTrashBinExists(dto.trashBinId, tenantUuid);
     if (dto.locationId) await this.assertLocationExists(dto.locationId, tenantUuid);
+
+    // Mantém a regra de que tarefas vinculadas a uma lixeira pertencem ao time
+    // de limpeza, considerando o estado resultante após a edição.
+    if (dto.trashBinId !== undefined || dto.assigneeRole !== undefined) {
+      const effectiveTrashBinId =
+        dto.trashBinId !== undefined ? dto.trashBinId : current.trashBinId;
+      const effectiveRole =
+        dto.assigneeRole !== undefined ? dto.assigneeRole : current.assigneeRole;
+      this.assertTrashBinAssigneeRole(effectiveTrashBinId, effectiveRole);
+    }
 
     const data: Prisma.TaskUpdateInput = {};
     if (dto.title !== undefined) data.title = dto.title;
@@ -317,6 +330,14 @@ export class TasksService {
     if (!exists) throw new BadRequestException(`Location ${locationId} not found`);
   }
 
+  private async assertCameraExists(cameraId: string, tenantUuid: string): Promise<void> {
+    const exists = await this.prisma.camera.findFirst({
+      where: { id: cameraId, tenantUuid },
+      select: { id: true },
+    });
+    if (!exists) throw new BadRequestException(`Camera ${cameraId} not found`);
+  }
+
   private composeSecurityOccurrenceDescription(
     dto: CreateSecurityOccurrenceDto,
   ): string {
@@ -335,6 +356,17 @@ export class TasksService {
   private assertAssigneeRole(role: UserRole | undefined): void {
     if (!isTaskAssigneeRole(role)) {
       throw new BadRequestException('Selecione um tipo de funcionário válido para a tarefa.');
+    }
+  }
+
+  private assertTrashBinAssigneeRole(
+    trashBinId: string | null | undefined,
+    role: UserRole | null | undefined,
+  ): void {
+    if (trashBinId && role !== UserRole.LIMPEZA) {
+      throw new BadRequestException(
+        'Tarefas vinculadas a uma lixeira devem ser atribuídas ao time de limpeza.',
+      );
     }
   }
 

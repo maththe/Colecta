@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
 import { TrashBinsModule } from './trash-bins/trash-bins.module';
 import { LocationsModule } from './locations/locations.module';
+import { CamerasModule } from './cameras/cameras.module';
 import { SensorReadingsModule } from './sensor-readings/sensor-readings.module';
 import { TasksModule } from './tasks/tasks.module';
 import { HealthModule } from './health/health.module';
@@ -27,6 +28,7 @@ import { MqttIngestModule } from './mqtt-ingest/mqtt-ingest.module';
     AuthModule,
     UsersModule,
     LocationsModule,
+    CamerasModule,
     TrashBinsModule,
     SensorReadingsModule,
     TasksModule,

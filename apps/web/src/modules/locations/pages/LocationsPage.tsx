@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
 import { ArrowLeft, MapPin, Trash2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { ErrorState, LoadingState, EmptyState } from '@/components/States';
@@ -13,6 +12,13 @@ import { useAuth } from '@/modules/auth/context/AuthContext';
 import { formatCoord } from '@/lib/format';
 import type { CreateLocationInput, CreateTrashBinInput, Location, TrashBin } from '@/types';
 import { Button } from '@/components/ui/button';
+import {
+  buildMarkerIcon,
+  LOCATION_COLOR,
+  MARKER_ICONS,
+  spreadBins,
+  STATUS_COLOR,
+} from '@/modules/trash-bins/components/map-markers';
 
 type CreateMode = 'location' | 'trash-bin';
 
@@ -28,22 +34,6 @@ type PendingDelete =
   | { kind: 'bin'; item: TrashBin };
 
 const DEFAULT_CENTER: [number, number] = [-23.5874, -46.6576];
-
-function buildIcon(color: string, size = 22): L.DivIcon {
-  const anchor = size / 2;
-  return L.divIcon({
-    className: 'colecta-placement-marker',
-    html: `<div style="
-      width:${size}px;height:${size}px;border-radius:50%;
-      background:${color};
-      border:3px solid white;
-      box-shadow:0 1px 4px rgba(0,0,0,0.4);
-    "></div>`,
-    iconSize: [size, size],
-    iconAnchor: [anchor, anchor],
-    popupAnchor: [0, -anchor],
-  });
-}
 
 function MapClickHandler({
   disabled,
@@ -85,13 +75,6 @@ function PlacementMap({
   mode: CreateMode;
   onPick: (placement: DraftPlacement) => void;
 }) {
-  const occupiedLocationIds = useMemo(
-    () => new Set(bins.map((bin) => bin.locationId)),
-    [bins],
-  );
-
-  const freeLocations = locations.filter((location) => !occupiedLocationIds.has(location.id));
-
   return (
     <MapContainer
       center={center}
@@ -106,11 +89,11 @@ function PlacementMap({
       />
       <MapClickHandler disabled={!canCreate} mode={mode} onPick={onPick} />
 
-      {freeLocations.map((location) => (
+      {locations.map((location) => (
         <Marker
           key={location.id}
           position={[location.latitude, location.longitude]}
-          icon={buildIcon('#2563eb')}
+          icon={buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.location)}
         >
           <Popup>
             <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{location.name}</p>
@@ -124,11 +107,11 @@ function PlacementMap({
         </Marker>
       ))}
 
-      {bins.map((bin) => (
+      {spreadBins(bins).map(({ bin, position }) => (
         <Marker
           key={bin.id}
-          position={[bin.latitude, bin.longitude]}
-          icon={buildIcon('#16a34a')}
+          position={position}
+          icon={buildMarkerIcon(STATUS_COLOR[bin.status], MARKER_ICONS.bin)}
         >
           <Popup>
             <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{bin.name}</p>
@@ -145,7 +128,11 @@ function PlacementMap({
       {draftPlacement && (
         <Marker
           position={[draftPlacement.latitude, draftPlacement.longitude]}
-          icon={buildIcon(draftPlacement.mode === 'location' ? '#2563eb' : '#16a34a', 26)}
+          icon={
+            draftPlacement.mode === 'location'
+              ? buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.location, 34)
+              : buildMarkerIcon(STATUS_COLOR.active, MARKER_ICONS.bin, 32)
+          }
         />
       )}
     </MapContainer>
@@ -213,12 +200,13 @@ export function LocationsPage() {
     [bins],
   );
 
+  // Listamos todas as posições (inclusive as que já têm lixeira) para refletir o
+  // que aparece no mapa. A exclusão fica desabilitada nas ocupadas, pois o banco
+  // impede remover uma posição enquanto houver lixeira vinculada (onDelete: Restrict).
   const sortedLocations = useMemo(
     () =>
-      [...(locations ?? [])]
-        .filter((location) => !occupiedLocationIds.has(location.id))
-        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
-    [locations, occupiedLocationIds],
+      [...(locations ?? [])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+    [locations],
   );
 
   const sortedBins = useMemo(
@@ -376,35 +364,47 @@ export function LocationsPage() {
                   <EmptyState label="Nenhuma posição cadastrada." className="rounded-lg py-8" />
                 ) : (
                   <div className="flex flex-col gap-3">
-                    {sortedLocations.map((location) => (
-                      <div key={location.id} className="flex gap-3">
-                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-                          <MapPin className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-semibold">{location.name}</div>
-                          {location.description && (
-                            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                              {location.description}
+                    {sortedLocations.map((location) => {
+                      const occupied = occupiedLocationIds.has(location.id);
+                      return (
+                        <div key={location.id} className="flex gap-3">
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+                            <MapPin className="h-4 w-4 text-primary" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-semibold">{location.name}</div>
+                            {location.description && (
+                              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                                {location.description}
+                              </p>
+                            )}
+                            <p className="mt-1 font-mono text-xs text-muted-foreground">
+                              {formatCoord(location.latitude)}, {formatCoord(location.longitude)}
                             </p>
+                            {occupied && (
+                              <p className="mt-1 text-xs text-muted-foreground">Com lixeira vinculada</p>
+                            )}
+                          </div>
+                          {canCreate && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                              disabled={occupied}
+                              onClick={() => requestDelete({ kind: 'location', item: location })}
+                              aria-label={
+                                occupied
+                                  ? `Não é possível excluir ${location.name}: há lixeira vinculada`
+                                  : `Excluir posição ${location.name}`
+                              }
+                              title={occupied ? 'Remova as lixeiras vinculadas antes de excluir' : undefined}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           )}
-                          <p className="mt-1 font-mono text-xs text-muted-foreground">
-                            {formatCoord(location.latitude)}, {formatCoord(location.longitude)}
-                          </p>
                         </div>
-                        {canCreate && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                            onClick={() => requestDelete({ kind: 'location', item: location })}
-                            aria-label={`Excluir posição ${location.name}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

@@ -14,6 +14,7 @@ import {
   BarChart3,
   Menu,
   ShieldCheck,
+  Wallet,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -43,6 +44,7 @@ const dashboardSection = {
   items: [
     { to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
     { to: '/analytics', label: 'Analytics', Icon: BarChart3 },
+    { to: '/finance', label: 'Financeiro', Icon: Wallet },
   ],
 } satisfies { title?: string; items: NavItem[] };
 
