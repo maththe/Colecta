@@ -20,7 +20,7 @@ import { BatteryIndicator } from '../components/BatteryIndicator';
 import { Modal } from '@/components/Modal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TrashBinForm } from '../components/TrashBinForm';
-import { formatCoord, formatRelativeTime } from '@/lib/format';
+import { formatRelativeTime } from '@/lib/format';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { useAuth } from '@/modules/auth/context/AuthContext';
 import { StatCard } from '@/components/StatCard';
@@ -299,7 +299,6 @@ export function BinsPage() {
                         <TableHead>Preenchimento</TableHead>
                         <TableHead>Bateria</TableHead>
                         <TableHead>Última comunicação</TableHead>
-                        <TableHead>Localização</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -342,28 +341,16 @@ export function BinsPage() {
                           <TableCell className="text-muted-foreground">
                             {formatRelativeTime(bin.lastSeenAt)}
                           </TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {formatCoord(bin.latitude)}, {formatCoord(bin.longitude)}
-                          </TableCell>
                           <TableCell>
                             <div className="flex justify-end gap-2">
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => navigate(`/map?bin=${bin.id}`)}
+                                onClick={() => navigate(binViewHref(bin))}
                               >
                                 <MapPin className="h-4 w-4" />
-                                Ver no mapa
+                                Visualizar
                               </Button>
-                              {bin.location?.isBuilding && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => navigate(`/locations/${bin.locationId}/building`)}
-                                >
-                                  Ver construção
-                                </Button>
-                              )}
                               {canManageBins && (
                                 <>
                                   <Button variant="outline" size="sm" onClick={() => openEdit(bin)}>
@@ -428,6 +415,17 @@ export function BinsPage() {
       />
     </div>
   );
+}
+
+// Lixeira dentro de uma construção abre a planta (no andar e marcador certos);
+// as demais caem no mapa principal focando o próprio marcador.
+function binViewHref(bin: TrashBin): string {
+  if (bin.location) {
+    const params = new URLSearchParams({ bin: bin.id });
+    if (bin.floor) params.set('floor', bin.floor);
+    return `/locations/${bin.locationId}/building?${params.toString()}`;
+  }
+  return `/map?bin=${bin.id}`;
 }
 
 function formatEta(hours: number): string {

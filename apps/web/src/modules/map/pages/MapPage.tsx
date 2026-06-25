@@ -51,7 +51,6 @@ export function MapPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedBin, setSelectedBin] = useState<TrashBin | null>(null);
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [selectedCamera, setSelectedCamera] = useState<SecurityCamera | null>(null);
   // Câmera cuja imagem está sendo visualizada no modal (independe de permissão).
   const [previewCamera, setPreviewCamera] = useState<SecurityCamera | null>(null);
@@ -190,13 +189,6 @@ export function MapPage() {
     return [sum.lat / points.length, sum.lng / points.length];
   }, [bins, locations, cameras, tasks, focusBinId, focusLocationId, focusCameraId, focusTaskId]);
 
-  // Posições que ainda não têm uma lixeira — usadas no formulário de tarefa
-  // para oferecer apenas locais disponíveis ao vincular uma nova lixeira.
-  const freeLocations = useMemo(() => {
-    const occupied = new Set((bins ?? []).map((b) => b.locationId));
-    return locations.filter((loc) => !occupied.has(loc.id));
-  }, [bins, locations]);
-
   const hasMapData =
     (bins?.length ?? 0) > 0 || locations.length > 0 || cameras.length > 0;
 
@@ -312,24 +304,14 @@ export function MapPage() {
 
   function openTaskForBin(bin: TrashBin) {
     if (!canCreateTasks) return;
-    setSelectedLocation(null);
     setSelectedCamera(null);
     setSelectedBin(bin);
-    setFormError(null);
-  }
-
-  function openTaskForLocation(location: Location) {
-    if (!canCreateTasks) return;
-    setSelectedBin(null);
-    setSelectedCamera(null);
-    setSelectedLocation(location);
     setFormError(null);
   }
 
   function openTaskForCamera(camera: SecurityCamera) {
     if (!canCreateTasks) return;
     setSelectedBin(null);
-    setSelectedLocation(null);
     setSelectedCamera(camera);
     setFormError(null);
   }
@@ -345,7 +327,6 @@ export function MapPage() {
   function handlePickPoint(latitude: number, longitude: number) {
     if (!canCreateTasks) return;
     setSelectedBin(null);
-    setSelectedLocation(null);
     setSelectedCamera(null);
     setPicking(false);
     setFormError(null);
@@ -354,7 +335,6 @@ export function MapPage() {
 
   function closeTaskModal() {
     setSelectedBin(null);
-    setSelectedLocation(null);
     setSelectedCamera(null);
     setPickedPoint(null);
     setFormError(null);
@@ -363,7 +343,7 @@ export function MapPage() {
   async function handleTaskSubmit(values: CreateTaskInput) {
     if (
       !canCreateTasks ||
-      (!selectedBin && !selectedLocation && !selectedCamera && !pickedPoint)
+      (!selectedBin && !selectedCamera && !pickedPoint)
     ) {
       return;
     }
@@ -375,7 +355,7 @@ export function MapPage() {
       const created = await api.tasks.create({
         ...values,
         trashBinId: values.trashBinId ?? selectedBin?.id ?? null,
-        locationId: values.locationId ?? selectedLocation?.id ?? null,
+        locationId: values.locationId ?? null,
         cameraId: selectedCamera?.id ?? null,
       });
       createdTaskId = created.id;
@@ -487,7 +467,6 @@ export function MapPage() {
             onPickPoint={canCreateTasks ? handlePickPoint : undefined}
             onSelectTask={(task) => navigate(`/tasks?task=${task.id}`)}
             onCreateTask={canCreateTasks ? openTaskForBin : undefined}
-            onCreateTaskForLocation={canCreateTasks ? openTaskForLocation : undefined}
             onCreateTaskForCamera={canCreateTasks ? openTaskForCamera : undefined}
             onViewCameraImage={canViewCameras ? setPreviewCamera : undefined}
             onViewBuilding={
@@ -527,31 +506,7 @@ export function MapPage() {
             key={selectedBin.id}
             target={{ kind: 'bin', bin: selectedBin }}
             bins={bins ?? []}
-            locations={freeLocations}
-            users={users}
-            submitting={submitting}
-            onCancel={closeTaskModal}
-            onSubmit={handleTaskSubmit}
-          />
-        </Modal>
-      )}
-
-      {canCreateTasks && selectedLocation && (
-        <Modal
-          open={!!selectedLocation}
-          title={`Nova tarefa - ${selectedLocation.name}`}
-          onClose={closeTaskModal}
-        >
-          {formError && (
-            <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              {formError}
-            </div>
-          )}
-          <TaskForm
-            key={selectedLocation.id}
-            target={{ kind: 'location', location: selectedLocation }}
-            bins={bins ?? []}
-            locations={freeLocations}
+            locations={locations}
             users={users}
             submitting={submitting}
             onCancel={closeTaskModal}
@@ -579,7 +534,7 @@ export function MapPage() {
               longitude: pickedPoint.longitude,
             }}
             bins={bins ?? []}
-            locations={freeLocations}
+            locations={locations}
             users={users}
             submitting={submitting}
             onCancel={closeTaskModal}

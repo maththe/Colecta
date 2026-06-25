@@ -28,7 +28,3 @@ export function formatRelativeTime(value: string | null | undefined): string {
   if (diff < day) return `${Math.floor(diff / hour)} h atrás`;
   return `${Math.floor(diff / day)} dia(s) atrás`;
 }
-
-export function formatCoord(value: number): string {
-  return value.toFixed(5);
-}

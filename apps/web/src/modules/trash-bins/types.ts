@@ -18,8 +18,9 @@ export interface TrashBin {
   id: string;
   name: string;
   code: string;
-  locationId: string;
-  location: Location;
+  locationId: string | null;
+  /** Construção à qual a lixeira pertence; `null` quando está ao ar livre. */
+  location: Location | null;
   locationDescription: string | null;
   latitude: number;
   longitude: number;

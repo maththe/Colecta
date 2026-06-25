@@ -9,7 +9,6 @@ export interface Location {
   description: string | null;
   latitude: number;
   longitude: number;
-  isBuilding: boolean;
   floorsCount: number | null;
   /** Mapa "andar -> data URL da imagem da planta". */
   floorPlans: Record<string, string> | null;
@@ -22,7 +21,6 @@ export interface CreateLocationInput {
   description?: string | null;
   latitude: number;
   longitude: number;
-  isBuilding?: boolean;
   floorsCount?: number | null;
   floorPlans?: Record<string, string> | null;
 }

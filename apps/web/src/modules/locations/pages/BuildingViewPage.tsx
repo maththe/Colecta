@@ -74,6 +74,9 @@ export function BuildingViewPage() {
   // Deep-link vindo do "Visualizar no mapa" de uma tarefa: foca o marcador,
   // abre o andar certo e (se pendente) oferece o botão "Iniciar tarefa".
   const focusTaskId = searchParams.get('task');
+  // Deep-link vindo do "Visualizar" de uma lixeira: abre o andar certo e foca
+  // o marcador da lixeira na planta (mesmo mecanismo do foco de tarefa).
+  const focusBinId = searchParams.get('bin');
   const floorParam = searchParams.get('floor');
   const startTaskId = searchParams.get('startTask');
   const { user } = useAuth();
@@ -175,12 +178,22 @@ export function BuildingViewPage() {
     return undefined;
   }, [building, focusTaskId]);
 
+  // Andar da lixeira apontada pelo deep-link (?bin=), se ela estiver na planta.
+  const focusBinFloor = useMemo<string | null | undefined>(() => {
+    if (!focusBinId) return undefined;
+    for (const group of building?.floors ?? []) {
+      if (group.bins.some((b) => b.id === focusBinId)) return group.floor;
+    }
+    return undefined;
+  }, [building, focusBinId]);
+
   // Define a aba inicial assim que os andares são conhecidos. Prioriza o andar
   // da tarefa do deep-link, depois o ?floor= da URL, e por fim o primeiro andar.
   useEffect(() => {
     if (activeFloor) return;
-    if (focusTaskFloor !== undefined) {
-      setActiveFloor(focusTaskFloor === null ? NO_FLOOR : focusTaskFloor);
+    const focusFloor = focusTaskFloor !== undefined ? focusTaskFloor : focusBinFloor;
+    if (focusFloor !== undefined) {
+      setActiveFloor(focusFloor === null ? NO_FLOOR : focusFloor);
       return;
     }
     if (floorParam && floorLabels.includes(floorParam)) {
@@ -189,7 +202,7 @@ export function BuildingViewPage() {
     }
     if (floorLabels.length > 0) setActiveFloor(floorLabels[0]);
     else if (hasNoFloorItems) setActiveFloor(NO_FLOOR);
-  }, [floorLabels, hasNoFloorItems, activeFloor, focusTaskFloor, floorParam]);
+  }, [floorLabels, hasNoFloorItems, activeFloor, focusTaskFloor, focusBinFloor, floorParam]);
 
   const activeFloorValue = activeFloor === NO_FLOOR ? null : activeFloor;
 
@@ -482,12 +495,12 @@ export function BuildingViewPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <BackHeader
           title={building.name}
-          subtitle={building.isBuilding ? 'Mapa da construção' : 'Esta localização não é uma construção'}
+          subtitle="Mapa da construção"
           onBack={() => navigate('/map')}
           action={
             <Button
               type="button"
-              variant="outline"
+              variant="default"
               size="sm"
               onClick={() => navigate(`/map?location=${building.id}`)}
             >
@@ -584,6 +597,7 @@ export function BuildingViewPage() {
               cameras={placedCameras}
               tasks={placedTasks}
               focusTaskId={focusTaskId}
+              focusBinId={focusBinId}
               canManage={canManage}
               canViewCameras={canViewCameras}
               interactive={!!placing || picking}
@@ -756,9 +770,13 @@ function PlanFocus({
       if (cancelled) return;
       const marker = markerRefs.current[targetKey];
       if (marker) {
-        // Aproxima e centraliza no marcador, depois abre o popup.
-        map.setView(marker.getLatLng(), Math.min(map.getMaxZoom(), Math.max(map.getZoom(), 1)));
-        marker.openPopup();
+        // Anima (voa) suavemente da visão geral até o marcador e só abre o
+        // popup quando o movimento termina, evitando o "pulo" brusco do setView.
+        const targetZoom = Math.min(map.getMaxZoom(), Math.max(map.getZoom(), 1));
+        map.once('moveend', () => {
+          if (!cancelled) marker.openPopup();
+        });
+        map.flyTo(marker.getLatLng(), targetZoom, { duration: 0.8 });
         return;
       }
       if (attempts++ < 30) timer = setTimeout(tryFocus, 100);
@@ -782,6 +800,7 @@ function FloorPlanMap({
   cameras,
   tasks,
   focusTaskId,
+  focusBinId,
   canManage,
   canViewCameras,
   interactive,
@@ -799,6 +818,7 @@ function FloorPlanMap({
   cameras: SecurityCamera[];
   tasks: BuildingTask[];
   focusTaskId?: string | null;
+  focusBinId?: string | null;
   canManage: boolean;
   canViewCameras: boolean;
   interactive: boolean;
@@ -809,8 +829,14 @@ function FloorPlanMap({
   onViewCameraImage?: (camera: SecurityCamera) => void;
   onSelectTask: (task: BuildingTask) => void;
 }) {
-  // Refs dos marcadores de tarefa, para abrir o popup da tarefa do deep-link.
+  // Refs dos marcadores (tarefa/lixeira), para abrir o popup do item do deep-link.
   const markerRefs = useRef<Record<string, L.Marker | null>>({});
+  // Alvo do foco: tarefa tem prioridade; senão, a lixeira do deep-link.
+  const focusKey = focusTaskId
+    ? `task-${focusTaskId}`
+    : focusBinId
+      ? `bin-${focusBinId}`
+      : null;
   // posX/posY (0-100, a partir do topo-esquerda) <-> coordenadas do CRS.Simple.
   // Em CRS.Simple o "lat" cresce para cima, então invertemos o eixo Y.
   const bounds = useMemo<L.LatLngBoundsExpression>(
@@ -848,16 +874,16 @@ function FloorPlanMap({
           onPlanClick(p.posX, p.posY);
         }}
       />
-      <PlanFocus
-        targetKey={focusTaskId ? `task-${focusTaskId}` : null}
-        markerRefs={markerRefs}
-      />
+      <PlanFocus targetKey={focusKey} markerRefs={markerRefs} />
 
       {bins.map((bin) => (
         <Marker
           key={`bin-${bin.id}`}
           position={toLatLng(bin.posX ?? 0, bin.posY ?? 0)}
           icon={buildMarkerIcon(STATUS_COLOR[bin.status], MARKER_ICONS.bin)}
+          ref={(ref) => {
+            markerRefs.current[`bin-${bin.id}`] = ref;
+          }}
         >
           <Popup>
             <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{bin.name}</p>

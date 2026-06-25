@@ -23,10 +23,9 @@ const COLUMNS: { status: TaskStatus; dot: string; ring: string }[] = [
   { status: 'cancelled', dot: 'bg-muted-foreground', ring: 'ring-foreground/10' },
 ];
 
-// Colunas finalizadas são históricas: mostramos só as mais recentes e
-// liberamos o restante sob demanda, evitando que o quadro cresça sem limite.
-const COMPLETED_VISIBLE_LIMIT = 8;
-const FINISHED: TaskStatus[] = ['done', 'cancelled'];
+// Cada coluna mostra só as primeiras tarefas e libera o restante sob demanda,
+// evitando que o quadro cresça sem limite.
+const COLUMN_VISIBLE_LIMIT = 8;
 
 type Scope = 'mine' | 'all';
 
@@ -204,8 +203,8 @@ export function TasksBoard({
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {COLUMNS.map((col) => {
             const items = grouped[col.status];
-            const capped = FINISHED.includes(col.status) && !expanded[col.status];
-            const shown = capped ? items.slice(0, COMPLETED_VISIBLE_LIMIT) : items;
+            const capped = !expanded[col.status];
+            const shown = capped ? items.slice(0, COLUMN_VISIBLE_LIMIT) : items;
             const hidden = items.length - shown.length;
             return (
               <section

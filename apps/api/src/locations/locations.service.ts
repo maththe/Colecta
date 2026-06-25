@@ -20,7 +20,6 @@ const locationSummarySelect = {
   description: true,
   latitude: true,
   longitude: true,
-  isBuilding: true,
   floorsCount: true,
   createdAt: true,
   updatedAt: true,
@@ -154,7 +153,6 @@ export class LocationsService {
         description: dto.description ?? null,
         latitude: dto.latitude,
         longitude: dto.longitude,
-        isBuilding: dto.isBuilding ?? false,
         floorsCount: dto.floorsCount ?? null,
         floorPlans: dto.floorPlans ?? undefined,
       },
@@ -170,7 +168,6 @@ export class LocationsService {
     if (dto.description !== undefined) data.description = dto.description ?? null;
     if (dto.latitude !== undefined) data.latitude = dto.latitude;
     if (dto.longitude !== undefined) data.longitude = dto.longitude;
-    if (dto.isBuilding !== undefined) data.isBuilding = dto.isBuilding;
     if (dto.floorsCount !== undefined) data.floorsCount = dto.floorsCount ?? null;
     if (dto.floorPlans !== undefined) {
       data.floorPlans = dto.floorPlans ?? Prisma.DbNull;

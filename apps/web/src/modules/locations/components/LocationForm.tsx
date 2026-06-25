@@ -18,7 +18,6 @@ type FormValues = {
   description?: string;
   latitude: string;
   longitude: string;
-  isBuilding: boolean;
   floorsCount: string;
 };
 
@@ -30,7 +29,6 @@ export function LocationForm({ initial, defaults, submitting, onCancel, onSubmit
   const {
     register,
     handleSubmit,
-    watch,
     formState: { errors },
   } = useForm<FormValues>({
     defaultValues: {
@@ -38,7 +36,6 @@ export function LocationForm({ initial, defaults, submitting, onCancel, onSubmit
       description: initial?.description ?? defaults?.description ?? '',
       latitude: initial ? String(initial.latitude) : numberToInput(defaults?.latitude),
       longitude: initial ? String(initial.longitude) : numberToInput(defaults?.longitude),
-      isBuilding: initial?.isBuilding ?? defaults?.isBuilding ?? false,
       floorsCount:
         initial?.floorsCount != null
           ? String(initial.floorsCount)
@@ -46,19 +43,13 @@ export function LocationForm({ initial, defaults, submitting, onCancel, onSubmit
     },
   });
 
-  const isBuilding = watch('isBuilding');
-
   const submit = handleSubmit((values) =>
     onSubmit({
       name: values.name.trim(),
       description: values.description?.trim() || undefined,
       latitude: Number(values.latitude),
       longitude: Number(values.longitude),
-      isBuilding: values.isBuilding,
-      floorsCount:
-        values.isBuilding && values.floorsCount.trim() !== ''
-          ? Number(values.floorsCount)
-          : null,
+      floorsCount: values.floorsCount.trim() !== '' ? Number(values.floorsCount) : null,
     }),
   );
 
@@ -126,41 +117,30 @@ export function LocationForm({ initial, defaults, submitting, onCancel, onSubmit
       </div>
 
       <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
-        <label className="flex items-center gap-2 text-sm font-medium">
-          <input
-            type="checkbox"
-            className="h-4 w-4 rounded border-border accent-primary"
-            {...register('isBuilding')}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="location-floors">Número de andares</Label>
+          <Input
+            id="location-floors"
+            type="number"
+            min={1}
+            placeholder="ex: 5"
+            {...register('floorsCount', {
+              validate: (value) => {
+                if (value === undefined || value.trim() === '') return true;
+                const n = Number(value);
+                if (!Number.isInteger(n) || n < 1) return 'Informe um número de andares válido';
+                return true;
+              },
+            })}
+            aria-invalid={!!errors.floorsCount}
           />
-          É uma construção (prédio com andares)
-        </label>
-
-        {isBuilding && (
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="location-floors">Número de andares</Label>
-            <Input
-              id="location-floors"
-              type="number"
-              min={1}
-              placeholder="ex: 5"
-              {...register('floorsCount', {
-                validate: (value) => {
-                  if (value === undefined || value.trim() === '') return true;
-                  const n = Number(value);
-                  if (!Number.isInteger(n) || n < 1) return 'Informe um número de andares válido';
-                  return true;
-                },
-              })}
-              aria-invalid={!!errors.floorsCount}
-            />
-            {errors.floorsCount && (
-              <p className="text-xs text-destructive">{errors.floorsCount.message}</p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Você poderá enviar a planta de cada andar e posicionar as lixeiras no mapa da construção.
-            </p>
-          </div>
-        )}
+          {errors.floorsCount && (
+            <p className="text-xs text-destructive">{errors.floorsCount.message}</p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Você poderá enviar a planta de cada andar e posicionar as lixeiras no mapa da construção.
+          </p>
+        </div>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">

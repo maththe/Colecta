@@ -1,5 +1,4 @@
 import {
-  IsBoolean,
   IsInt,
   IsLatitude,
   IsLongitude,
@@ -28,10 +27,6 @@ export class CreateLocationDto {
 
   @IsLongitude()
   longitude!: number;
-
-  @IsOptional()
-  @IsBoolean()
-  isBuilding?: boolean;
 
   @IsOptional()
   @IsInt()

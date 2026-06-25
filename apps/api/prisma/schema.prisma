@@ -80,8 +80,12 @@ model TrashBin {
   tenantUuid     String
   name           String
   code           String
-  locationId     String         @db.Uuid
-  location       Location       @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  locationId     String?        @db.Uuid
+  location       Location?      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  // Coordenadas próprias quando a lixeira está "ao ar livre" (sem construção).
+  // Preenchidas juntas ou ambas nulas; nesse caso `locationId` é nulo.
+  latitude       Float?
+  longitude      Float?
   capacityLiters Int
   status         TrashBinStatus @default(active)
   fillLevel      Int?
@@ -116,9 +120,8 @@ model Location {
   description String?
   latitude    Float
   longitude   Float
-  // Quando a localização é uma construção (prédio), as lixeiras se distribuem
-  // por andares e ganham posição interna na planta de cada andar.
-  isBuilding  Boolean  @default(false)
+  // Toda localização é uma construção (prédio): as lixeiras se distribuem por
+  // andares e ganham posição interna na planta de cada andar.
   floorsCount Int?
   // Mapa "andar -> imagem da planta (data URL)" para o mapa da construção.
   floorPlans  Json?

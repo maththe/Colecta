@@ -32,14 +32,14 @@ import { isEmployeeRole, isTaskAssigneeRole } from '../auth/role-groups';
 type TaskWithBin = Prisma.TaskGetPayload<{
   include: {
     trashBin: { select: { id: true; name: true; code: true } };
-    location: { select: { id: true; name: true; latitude: true; longitude: true; isBuilding: true } };
+    location: { select: { id: true; name: true; latitude: true; longitude: true } };
     startedBy: { select: { id: true; name: true } };
   };
 }>;
 
 const taskInclude = {
   trashBin: { select: { id: true, name: true, code: true } },
-  location: { select: { id: true, name: true, latitude: true, longitude: true, isBuilding: true } },
+  location: { select: { id: true, name: true, latitude: true, longitude: true } },
   startedBy: { select: { id: true, name: true } },
 } satisfies Prisma.TaskInclude;
 

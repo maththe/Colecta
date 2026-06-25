@@ -23,7 +23,6 @@ const locationSelect = {
   description: true,
   latitude: true,
   longitude: true,
-  isBuilding: true,
   floorsCount: true,
   createdAt: true,
   updatedAt: true,
@@ -116,7 +115,7 @@ export class TrashBinsService {
           floor: dto.floor ?? null,
           posX: dto.posX ?? null,
           posY: dto.posY ?? null,
-          location: await this.resolveLocationForCreate(dto, tenantUuid),
+          ...(await this.resolvePlacementForCreate(dto, tenantUuid)),
         },
         include: trashBinInclude,
       });
@@ -149,23 +148,10 @@ export class TrashBinsService {
   }
 
   async remove(id: string, tenantUuid: string): Promise<{ id: string }> {
-    const bin = await this.findOneRaw(id, tenantUuid);
-
-    // Apaga a lixeira e, se a posição não for usada por nenhuma outra lixeira,
-    // remove a posição também — assim ela não fica como marcador órfão no mapa.
-    // Exceção: construções (isBuilding) são entidades de primeira classe, com
-    // andares e plantas próprias, então persistem mesmo sem lixeiras.
-    await this.prisma.$transaction(async (tx) => {
-      await tx.trashBin.delete({ where: { id } });
-      if (bin.location.isBuilding) return;
-      const remaining = await tx.trashBin.count({
-        where: { locationId: bin.locationId },
-      });
-      if (remaining === 0) {
-        await tx.location.delete({ where: { id: bin.locationId } });
-      }
-    });
-
+    await this.findOneRaw(id, tenantUuid);
+    // A lixeira carrega a própria coordenada (ou vincula a uma construção, que é
+    // entidade de primeira classe): não há mais "posição órfã" para limpar.
+    await this.prisma.trashBin.delete({ where: { id } });
     return { id };
   }
 
@@ -184,20 +170,24 @@ export class TrashBinsService {
   ): TrashBinResponse {
     return {
       ...bin,
-      locationDescription: bin.location.description,
-      latitude: bin.location.latitude,
-      longitude: bin.location.longitude,
+      locationDescription: bin.location?.description ?? null,
+      // Lixeira ao ar livre usa a própria coordenada; dentro de uma construção,
+      // herda a coordenada da construção (que é o ponto dela no mapa).
+      latitude: bin.latitude ?? bin.location?.latitude ?? 0,
+      longitude: bin.longitude ?? bin.location?.longitude ?? 0,
       forecast,
     };
   }
 
-  private async resolveLocationForCreate(
+  // Resolve o posicionamento da lixeira na criação: ou vinculada a uma
+  // construção (`locationId`), ou "ao ar livre" com coordenada própria.
+  private async resolvePlacementForCreate(
     dto: CreateTrashBinDto,
     tenantUuid: string,
-  ): Promise<Prisma.LocationCreateNestedOneWithoutTrashBinsInput> {
+  ): Promise<Pick<Prisma.TrashBinCreateInput, 'location' | 'latitude' | 'longitude'>> {
     if (dto.locationId) {
       await this.assertLocationExists(dto.locationId, tenantUuid);
-      return { connect: { id: dto.locationId } };
+      return { location: { connect: { id: dto.locationId } } };
     }
 
     if (dto.latitude == null || dto.longitude == null) {
@@ -206,16 +196,7 @@ export class TrashBinsService {
       );
     }
 
-    const locationName = dto.locationDescription?.trim() || dto.name;
-    return {
-      create: {
-        tenantUuid,
-        name: locationName,
-        description: dto.locationDescription ?? null,
-        latitude: dto.latitude,
-        longitude: dto.longitude,
-      },
-    };
+    return { latitude: dto.latitude, longitude: dto.longitude };
   }
 
   private async buildUpdateData(
@@ -239,28 +220,31 @@ export class TrashBinsService {
     if (dto.posY !== undefined) data.posY = dto.posY ?? null;
 
     if (dto.locationId !== undefined) {
-      if (!dto.locationId) {
-        throw new BadRequestException('A lixeira precisa estar vinculada a uma localização.');
+      if (dto.locationId) {
+        // Vincular a uma construção: a coordenada própria deixa de valer.
+        await this.assertLocationExists(dto.locationId, tenantUuid);
+        data.location = { connect: { id: dto.locationId } };
+        data.latitude = dto.latitude ?? null;
+        data.longitude = dto.longitude ?? null;
+      } else {
+        // Soltar para "ao ar livre": precisa de coordenada própria.
+        const latitude = dto.latitude ?? currentLocation?.latitude;
+        const longitude = dto.longitude ?? currentLocation?.longitude;
+        if (latitude == null || longitude == null) {
+          throw new BadRequestException(
+            'Informe latitude/longitude ao desvincular a lixeira de uma construção.',
+          );
+        }
+        data.location = { disconnect: true };
+        data.latitude = latitude;
+        data.longitude = longitude;
       }
-      await this.assertLocationExists(dto.locationId, tenantUuid);
-      data.location = { connect: { id: dto.locationId } };
       return data;
     }
 
-    const hasLegacyLocationFields =
-      dto.locationDescription !== undefined ||
-      dto.latitude !== undefined ||
-      dto.longitude !== undefined;
-
-    if (hasLegacyLocationFields) {
-      data.location = {
-        update: {
-          description: dto.locationDescription ?? currentLocation.description,
-          latitude: dto.latitude ?? currentLocation.latitude,
-          longitude: dto.longitude ?? currentLocation.longitude,
-        },
-      };
-    }
+    // Sem mexer no vínculo: apenas atualizar a coordenada própria, se enviada.
+    if (dto.latitude !== undefined) data.latitude = dto.latitude;
+    if (dto.longitude !== undefined) data.longitude = dto.longitude;
 
     return data;
   }

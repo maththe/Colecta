@@ -119,7 +119,7 @@ export function TaskForm({
 
   const linkOptions: { value: LinkType; label: string }[] = [
     { value: 'bin', label: 'Lixeira' },
-    ...(locations.length > 0 ? [{ value: 'location' as const, label: 'Posição' }] : []),
+    ...(locations.length > 0 ? [{ value: 'location' as const, label: 'Construção' }] : []),
     { value: 'none', label: 'Nenhum' },
   ];
 
@@ -216,7 +216,7 @@ export function TaskForm({
             {target.kind === 'bin'
               ? 'Lixeira'
               : target.kind === 'location'
-                ? 'Posição'
+                ? 'Construção'
                 : 'Local no mapa'}
           </Label>
           <div className="flex items-center gap-2 rounded-lg border border-input bg-muted/40 px-2.5 py-2 text-sm">
@@ -236,9 +236,7 @@ export function TaskForm({
             ) : (
               <>
                 <MapPin className="h-4 w-4 shrink-0 text-primary" />
-                <span className="font-mono text-xs">
-                  {target.latitude.toFixed(5)}, {target.longitude.toFixed(5)}
-                </span>
+                <span className="text-muted-foreground">Ponto selecionado no mapa</span>
               </>
             )}
           </div>
@@ -275,11 +273,11 @@ export function TaskForm({
           {linkType === 'location' && (
             <select
               id="task-location"
-              aria-label="Posição relacionada"
+              aria-label="Construção relacionada"
               className={`${selectClass} mt-1`}
               {...register('locationId')}
             >
-              <option value="">— Selecione a posição —</option>
+              <option value="">— Selecione a construção —</option>
               {locations.map((location) => (
                 <option key={location.id} value={location.id}>
                   {location.name}

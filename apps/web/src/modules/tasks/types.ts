@@ -18,7 +18,6 @@ export interface Task {
     name: string;
     latitude: number;
     longitude: number;
-    isBuilding: boolean;
   } | null;
   cameraId: string | null;
   // Coordenadas próprias quando a tarefa foi posicionada livremente no mapa.

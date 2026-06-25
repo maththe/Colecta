@@ -10,7 +10,7 @@ import {
   TRASH_BIN_STATUS_LABELS,
   USER_ROLE_LABELS,
 } from '@/types';
-import { formatCoord, formatRelativeTime } from '@/lib/format';
+import { formatRelativeTime } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import {
   buildMarkerIcon,
@@ -42,8 +42,6 @@ interface Props {
   /** Coordenada escolhida ao clicar no mapa no modo de seleção. */
   onPickPoint?: (latitude: number, longitude: number) => void;
   onCreateTask?: (bin: TrashBin) => void;
-  /** Abre o formulário de tarefa para uma posição (marcador azul). */
-  onCreateTaskForLocation?: (location: Location) => void;
   /** Abre o formulário de tarefa para uma câmera (marcador roxo). */
   onCreateTaskForCamera?: (camera: SecurityCamera) => void;
   /** Abre o modal com a imagem ao vivo da câmera. */
@@ -124,7 +122,6 @@ export function TrashBinMap({
   picking,
   onPickPoint,
   onCreateTask,
-  onCreateTaskForLocation,
   onCreateTaskForCamera,
   onViewCameraImage,
   onViewBuilding,
@@ -174,10 +171,7 @@ export function TrashBinMap({
         <Marker
           key={locationKey(location.id)}
           position={[location.latitude, location.longitude]}
-          icon={buildMarkerIcon(
-            LOCATION_COLOR,
-            location.isBuilding ? MARKER_ICONS.building : MARKER_ICONS.location,
-          )}
+          icon={buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.building)}
           ref={(ref) => {
             markerRefs.current[locationKey(location.id)] = ref;
           }}
@@ -187,21 +181,9 @@ export function TrashBinMap({
             {location.description && (
               <p style={{ fontSize: 12, margin: '2px 0' }}>{location.description}</p>
             )}
-            <p style={{ fontSize: 12, margin: '2px 0' }}>
-              {formatCoord(location.latitude)}, {formatCoord(location.longitude)}
-            </p>
-            {onCreateTaskForLocation && (
-              <Button
-                type="button"
-                size="sm"
-                className="mt-2 w-full"
-                onClick={() => onCreateTaskForLocation(location)}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Definir tarefa
-              </Button>
-            )}
-            {onViewBuilding && location.isBuilding && (
+            {/* Toda Location é construção: a tarefa é definida dentro da planta
+                (ver construção), não diretamente no marcador do prédio. */}
+            {onViewBuilding && (
               <Button
                 type="button"
                 size="sm"
@@ -218,7 +200,7 @@ export function TrashBinMap({
       ))}
       {/* Lixeiras de construção não aparecem no mapa: elas vivem na planta do
           andar (mapa da construção). Aqui só as lixeiras "ao ar livre". */}
-      {spreadBins(bins.filter((bin) => !bin.location?.isBuilding)).map(({ bin, position }) => (
+      {spreadBins(bins.filter((bin) => !bin.location)).map(({ bin, position }) => (
         <Marker
           key={bin.id}
           position={position}

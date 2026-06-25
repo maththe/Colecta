@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet';
-import { ArrowLeft, Camera, MapPin, Trash2 } from 'lucide-react';
+import { ArrowLeft, Building2, Camera, MapPin, Trash2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { ErrorState, LoadingState, EmptyState } from '@/components/States';
 import { Modal } from '@/components/Modal';
@@ -10,7 +10,6 @@ import { LocationForm } from '../components/LocationForm';
 import { TrashBinForm } from '@/modules/trash-bins/components/TrashBinForm';
 import { CameraForm } from '@/modules/security/components';
 import { useAuth } from '@/modules/auth/context/AuthContext';
-import { formatCoord } from '@/lib/format';
 import type {
   CreateCameraInput,
   CreateLocationInput,
@@ -105,25 +104,19 @@ function PlacementMap({
         <Marker
           key={location.id}
           position={[location.latitude, location.longitude]}
-          icon={buildMarkerIcon(
-            LOCATION_COLOR,
-            location.isBuilding ? MARKER_ICONS.building : MARKER_ICONS.location,
-          )}
+          icon={buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.building)}
         >
           <Popup>
             <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{location.name}</p>
             {location.description && (
               <p style={{ fontSize: 12, margin: '2px 0' }}>{location.description}</p>
             )}
-            <p style={{ fontSize: 12, margin: '2px 0' }}>
-              {formatCoord(location.latitude)}, {formatCoord(location.longitude)}
-            </p>
           </Popup>
         </Marker>
       ))}
 
       {/* Lixeiras de construção vivem na planta do andar, não no mapa. */}
-      {spreadBins(bins.filter((bin) => !bin.location?.isBuilding)).map(({ bin, position }) => (
+      {spreadBins(bins.filter((bin) => !bin.location)).map(({ bin, position }) => (
         <Marker
           key={bin.id}
           position={position}
@@ -133,9 +126,6 @@ function PlacementMap({
             <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{bin.name}</p>
             <p style={{ fontSize: 12, margin: '2px 0' }}>
               <strong>Código:</strong> {bin.code}
-            </p>
-            <p style={{ fontSize: 12, margin: '2px 0' }}>
-              {formatCoord(bin.latitude)}, {formatCoord(bin.longitude)}
             </p>
           </Popup>
         </Marker>
@@ -152,9 +142,6 @@ function PlacementMap({
             <p style={{ fontSize: 12, margin: '2px 0' }}>
               <strong>Código:</strong> {camera.code}
             </p>
-            <p style={{ fontSize: 12, margin: '2px 0' }}>
-              {formatCoord(camera.latitude)}, {formatCoord(camera.longitude)}
-            </p>
           </Popup>
         </Marker>
       ))}
@@ -164,7 +151,7 @@ function PlacementMap({
           position={[draftPlacement.latitude, draftPlacement.longitude]}
           icon={
             draftPlacement.mode === 'location'
-              ? buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.location, 34)
+              ? buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.building, 34)
               : draftPlacement.mode === 'camera'
                 ? buildMarkerIcon(CAMERA_COLOR.online, MARKER_ICONS.camera, 32)
                 : buildMarkerIcon(STATUS_COLOR.active, MARKER_ICONS.bin, 32)
@@ -275,7 +262,7 @@ export function LocationsPage() {
       closeModal();
       await loadData();
     } catch (err: unknown) {
-      setFormError(err instanceof ApiError ? err.message : 'Erro ao cadastrar posição');
+      setFormError(err instanceof ApiError ? err.message : 'Erro ao cadastrar construção');
     } finally {
       setSubmitting(false);
     }
@@ -348,7 +335,7 @@ export function LocationsPage() {
       ? 'Nova lixeira'
       : draftPlacement?.mode === 'camera'
         ? 'Nova câmera'
-        : 'Nova posição';
+        : 'Nova construção';
 
   return (
     <div className="flex flex-col gap-6">
@@ -366,7 +353,7 @@ export function LocationsPage() {
           <div>
             <h1 className="text-2xl font-bold">Adicionar no mapa</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Cadastre posições, lixeiras e câmeras pela coordenada selecionada
+              Cadastre construções, lixeiras e câmeras pela coordenada selecionada
             </p>
           </div>
         </div>
@@ -378,8 +365,8 @@ export function LocationsPage() {
             size="sm"
             onClick={() => setMode('location')}
           >
-            <MapPin className="h-4 w-4" />
-            Posição
+            <Building2 className="h-4 w-4" />
+            Construção
           </Button>
           <Button
             type="button"
@@ -433,14 +420,14 @@ export function LocationsPage() {
               <div className="px-4 py-3">
                 <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Posições
+                    Construções
                   </h3>
                   <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium">
                     {sortedLocations.length}
                   </span>
                 </div>
                 {sortedLocations.length === 0 ? (
-                  <EmptyState label="Nenhuma posição cadastrada." className="rounded-lg py-8" />
+                  <EmptyState label="Nenhuma construção cadastrada." className="rounded-lg py-8" />
                 ) : (
                   <div className="flex flex-col gap-3">
                     {sortedLocations.map((location) => {
@@ -457,23 +444,18 @@ export function LocationsPage() {
                                 {location.description}
                               </p>
                             )}
-                            <p className="mt-1 font-mono text-xs text-muted-foreground">
-                              {formatCoord(location.latitude)}, {formatCoord(location.longitude)}
-                            </p>
                             {occupied && (
                               <p className="mt-1 text-xs text-muted-foreground">Com lixeira vinculada</p>
                             )}
-                            {location.isBuilding && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="mt-2"
-                                onClick={() => navigate(`/locations/${location.id}/building`)}
-                              >
-                                Ver construção
-                              </Button>
-                            )}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="mt-2"
+                              onClick={() => navigate(`/locations/${location.id}/building`)}
+                            >
+                              Ver construção
+                            </Button>
                           </div>
                           {canCreate && (
                             <Button
@@ -485,7 +467,7 @@ export function LocationsPage() {
                               aria-label={
                                 occupied
                                   ? `Não é possível excluir ${location.name}: há lixeira vinculada`
-                                  : `Excluir posição ${location.name}`
+                                  : `Excluir construção ${location.name}`
                               }
                               title={occupied ? 'Remova as lixeiras vinculadas antes de excluir' : undefined}
                             >
@@ -526,9 +508,6 @@ export function LocationsPage() {
                             </span>
                             <span className="truncate text-sm font-semibold">{bin.name}</span>
                           </div>
-                          <p className="mt-1 font-mono text-xs text-muted-foreground">
-                            {formatCoord(bin.latitude)}, {formatCoord(bin.longitude)}
-                          </p>
                         </div>
                         {canCreate && (
                           <Button
@@ -574,9 +553,6 @@ export function LocationsPage() {
                             </span>
                             <span className="truncate text-sm font-semibold">{camera.name}</span>
                           </div>
-                          <p className="mt-1 font-mono text-xs text-muted-foreground">
-                            {formatCoord(camera.latitude)}, {formatCoord(camera.longitude)}
-                          </p>
                         </div>
                         {canCreate && (
                           <Button
@@ -652,15 +628,14 @@ export function LocationsPage() {
             ? 'Excluir lixeira'
             : pendingDelete?.kind === 'camera'
               ? 'Excluir câmera'
-              : 'Excluir posição'
+              : 'Excluir construção'
         }
         description={
           pendingDelete &&
           (pendingDelete.kind === 'bin' ? (
             <>
-              A lixeira <strong>{pendingDelete.item.name}</strong> será removida. A posição vinculada
-              também sai do mapa, a menos que outra lixeira a utilize. Esta ação não pode ser
-              desfeita.
+              A lixeira <strong>{pendingDelete.item.name}</strong> será removida do mapa. Esta ação
+              não pode ser desfeita.
             </>
           ) : pendingDelete.kind === 'camera' ? (
             <>
@@ -669,7 +644,7 @@ export function LocationsPage() {
             </>
           ) : (
             <>
-              A posição <strong>{pendingDelete.item.name}</strong> será removida do mapa. Esta ação
+              A construção <strong>{pendingDelete.item.name}</strong> será removida do mapa. Esta ação
               não pode ser desfeita.
             </>
           ))
