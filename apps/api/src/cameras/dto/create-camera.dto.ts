@@ -4,6 +4,7 @@ import {
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -75,4 +76,22 @@ export class CreateCameraDto {
   @IsOptional()
   @IsUUID()
   trashBinId?: string | null;
+
+  // Posicionamento na planta de uma construção (mesmo padrão de TrashBin).
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  floor?: string | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  posX?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  posY?: number | null;
 }

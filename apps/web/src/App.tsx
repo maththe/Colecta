@@ -9,6 +9,7 @@ import { DashboardPage } from '@/modules/dashboard/pages/DashboardPage';
 import { BinsPage } from '@/modules/trash-bins/pages/BinsPage';
 import { MapPage } from '@/modules/map/pages/MapPage';
 import { LocationsPage } from '@/modules/locations/pages/LocationsPage';
+import { BuildingViewPage } from '@/modules/locations/pages/BuildingViewPage';
 import { TasksPage } from '@/modules/tasks/pages/TasksPage';
 import { AnalyticsPage } from '@/modules/analytics/pages/AnalyticsPage';
 import { SecurityPage } from '@/modules/security/pages/SecurityPage';
@@ -35,6 +36,8 @@ export function App() {
               </Route>
               <Route element={<ProtectedRoute allow={TRASH_BIN_ROLES} />}>
                 <Route path="/bins" element={<BinsPage />} />
+                {/* O mapa da construção exibe lixeiras, então segue a mesma allowlist. */}
+                <Route path="/locations/:id/building" element={<BuildingViewPage />} />
               </Route>
               <Route path="/locations" element={<LocationsPage />} />
               <Route path="/map" element={<MapPage />} />

@@ -10,8 +10,31 @@ import { CreateTrashBinDto } from './dto/create-trash-bin.dto';
 import { UpdateTrashBinDto } from './dto/update-trash-bin.dto';
 import { FillForecast, forecastFill } from './forecast';
 
+const FORECAST_LOOKBACK_DAYS = 7;
+const FORECAST_MAX_SAMPLES = 50;
+
+// Campos da localização expostos junto da lixeira. Exclui `floorPlans`
+// (data URLs das plantas, potencialmente grandes): só interessam ao mapa da
+// construção, então não devem trafegar em toda listagem de lixeiras.
+const locationSelect = {
+  id: true,
+  tenantUuid: true,
+  name: true,
+  description: true,
+  latitude: true,
+  longitude: true,
+  isBuilding: true,
+  floorsCount: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.LocationSelect;
+
+const trashBinInclude = {
+  location: { select: locationSelect },
+} satisfies Prisma.TrashBinInclude;
+
 type TrashBinWithLocation = Prisma.TrashBinGetPayload<{
-  include: { location: true };
+  include: typeof trashBinInclude;
 }>;
 
 type TrashBinResponse = TrashBinWithLocation & {
@@ -20,13 +43,6 @@ type TrashBinResponse = TrashBinWithLocation & {
   longitude: number;
   forecast: FillForecast | null;
 };
-
-const FORECAST_LOOKBACK_DAYS = 7;
-const FORECAST_MAX_SAMPLES = 50;
-
-const trashBinInclude = {
-  location: true,
-} satisfies Prisma.TrashBinInclude;
 
 @Injectable()
 export class TrashBinsService {
@@ -97,6 +113,9 @@ export class TrashBinsService {
           mqttTopic: dto.mqttTopic?.trim() || null,
           distanceEmptyCm: dto.distanceEmptyCm ?? null,
           distanceFullCm: dto.distanceFullCm ?? null,
+          floor: dto.floor ?? null,
+          posX: dto.posX ?? null,
+          posY: dto.posY ?? null,
           location: await this.resolveLocationForCreate(dto, tenantUuid),
         },
         include: trashBinInclude,
@@ -134,8 +153,11 @@ export class TrashBinsService {
 
     // Apaga a lixeira e, se a posição não for usada por nenhuma outra lixeira,
     // remove a posição também — assim ela não fica como marcador órfão no mapa.
+    // Exceção: construções (isBuilding) são entidades de primeira classe, com
+    // andares e plantas próprias, então persistem mesmo sem lixeiras.
     await this.prisma.$transaction(async (tx) => {
       await tx.trashBin.delete({ where: { id } });
+      if (bin.location.isBuilding) return;
       const remaining = await tx.trashBin.count({
         where: { locationId: bin.locationId },
       });
@@ -212,6 +234,9 @@ export class TrashBinsService {
     if (dto.mqttTopic !== undefined) data.mqttTopic = dto.mqttTopic?.trim() || null;
     if (dto.distanceEmptyCm !== undefined) data.distanceEmptyCm = dto.distanceEmptyCm;
     if (dto.distanceFullCm !== undefined) data.distanceFullCm = dto.distanceFullCm;
+    if (dto.floor !== undefined) data.floor = dto.floor ?? null;
+    if (dto.posX !== undefined) data.posX = dto.posX ?? null;
+    if (dto.posY !== undefined) data.posY = dto.posY ?? null;
 
     if (dto.locationId !== undefined) {
       if (!dto.locationId) {

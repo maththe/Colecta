@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCameraDto } from './dto/create-camera.dto';
+import { UpdateCameraDto } from './dto/update-camera.dto';
 
 /**
  * Remove qualquer menção a "Lixeira <código>" do nome da câmera. Usado para a
@@ -58,6 +59,9 @@ interface CameraResponse {
   fps: number;
   latitude: number;
   longitude: number;
+  floor: string | null;
+  posX: number | null;
+  posY: number | null;
   lastSeenAt: string | null;
   imageUrl: string;
   notes?: string;
@@ -109,6 +113,9 @@ export class CamerasService {
           notes: dto.notes?.trim() || null,
           locationId: dto.locationId ?? null,
           trashBinId: dto.trashBinId ?? null,
+          floor: dto.floor ?? null,
+          posX: dto.posX ?? null,
+          posY: dto.posY ?? null,
         },
         include: cameraInclude,
       });
@@ -119,6 +126,70 @@ export class CamerasService {
       }
       throw err;
     }
+  }
+
+  async update(
+    id: string,
+    dto: UpdateCameraDto,
+    tenantUuid: string,
+  ): Promise<CameraResponse> {
+    const current = await this.prisma.camera.findFirst({
+      where: { id, tenantUuid },
+      select: { id: true },
+    });
+    if (!current) throw new NotFoundException(`Camera ${id} not found`);
+
+    const data: Prisma.CameraUpdateInput = {};
+    if (dto.code !== undefined) data.code = dto.code.trim();
+    if (dto.name !== undefined) data.name = dto.name.trim();
+    if (dto.latitude !== undefined) data.latitude = dto.latitude;
+    if (dto.longitude !== undefined) data.longitude = dto.longitude;
+    if (dto.model !== undefined) data.model = dto.model?.trim() || 'Não informado';
+    if (dto.ipAddress !== undefined) data.ipAddress = dto.ipAddress?.trim() || 'Não informado';
+    if (dto.resolution !== undefined) data.resolution = dto.resolution?.trim() || 'Não informado';
+    if (dto.fps !== undefined) data.fps = dto.fps;
+    if (dto.status !== undefined) data.status = dto.status;
+    if (dto.imageUrl !== undefined) data.imageUrl = dto.imageUrl?.trim() || null;
+    if (dto.notes !== undefined) data.notes = dto.notes?.trim() || null;
+    if (dto.locationId !== undefined) {
+      data.location = dto.locationId ? { connect: { id: dto.locationId } } : { disconnect: true };
+    }
+    if (dto.trashBinId !== undefined) {
+      data.trashBin = dto.trashBinId ? { connect: { id: dto.trashBinId } } : { disconnect: true };
+    }
+    if (dto.floor !== undefined) data.floor = dto.floor ?? null;
+    if (dto.posX !== undefined) data.posX = dto.posX ?? null;
+    if (dto.posY !== undefined) data.posY = dto.posY ?? null;
+
+    try {
+      const camera = await this.prisma.camera.update({
+        where: { id },
+        data,
+        include: cameraInclude,
+      });
+      return this.toResponse(camera);
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException(`A camera with code "${dto.code}" already exists`);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Câmeras de uma construção (mesma localização), para o mapa da construção.
+   * Inclui o posicionamento na planta (floor/posX/posY).
+   */
+  async findByLocation(
+    locationId: string,
+    tenantUuid: string,
+  ): Promise<CameraResponse[]> {
+    const cameras = await this.prisma.camera.findMany({
+      where: { locationId, tenantUuid },
+      include: cameraInclude,
+      orderBy: { code: 'asc' },
+    });
+    return cameras.map((camera) => this.toResponse(camera));
   }
 
   async remove(id: string, tenantUuid: string): Promise<{ id: string }> {
@@ -171,6 +242,9 @@ export class CamerasService {
       fps: camera.fps,
       latitude: camera.latitude,
       longitude: camera.longitude,
+      floor: camera.floor ?? null,
+      posX: camera.posX ?? null,
+      posY: camera.posY ?? null,
       lastSeenAt: camera.lastSeenAt ? camera.lastSeenAt.toISOString() : null,
       imageUrl: camera.imageUrl ?? '',
       notes: camera.notes ?? undefined,

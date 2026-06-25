@@ -30,6 +30,9 @@ export interface TrashBin {
   mqttTopic: string | null;
   distanceEmptyCm: number | null;
   distanceFullCm: number | null;
+  floor: string | null;
+  posX: number | null;
+  posY: number | null;
   lastSeenAt: string | null;
   forecast: FillForecast | null;
   createdAt: string;
@@ -47,6 +50,9 @@ export interface CreateTrashBinInput {
   mqttTopic?: string | null;
   distanceEmptyCm?: number | null;
   distanceFullCm?: number | null;
+  floor?: string | null;
+  posX?: number | null;
+  posY?: number | null;
 }
 
 export const TRASH_BIN_STATUS_LABELS: Record<TrashBinStatus, string> = {

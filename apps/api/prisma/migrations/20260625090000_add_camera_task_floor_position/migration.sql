@@ -1,0 +1,9 @@
+-- AlterTable
+ALTER TABLE "cameras" ADD COLUMN     "floor" TEXT,
+ADD COLUMN     "posX" DOUBLE PRECISION,
+ADD COLUMN     "posY" DOUBLE PRECISION;
+
+-- AlterTable
+ALTER TABLE "tasks" ADD COLUMN     "floor" TEXT,
+ADD COLUMN     "posX" DOUBLE PRECISION,
+ADD COLUMN     "posY" DOUBLE PRECISION;

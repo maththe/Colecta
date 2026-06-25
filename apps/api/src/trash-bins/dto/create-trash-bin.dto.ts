@@ -79,4 +79,21 @@ export class CreateTrashBinDto {
   @Min(0)
   @Max(10000)
   distanceFullCm?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  floor?: string | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  posX?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  posY?: number | null;
 }

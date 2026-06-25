@@ -105,7 +105,10 @@ function PlacementMap({
         <Marker
           key={location.id}
           position={[location.latitude, location.longitude]}
-          icon={buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.location)}
+          icon={buildMarkerIcon(
+            LOCATION_COLOR,
+            location.isBuilding ? MARKER_ICONS.building : MARKER_ICONS.location,
+          )}
         >
           <Popup>
             <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{location.name}</p>
@@ -119,7 +122,8 @@ function PlacementMap({
         </Marker>
       ))}
 
-      {spreadBins(bins).map(({ bin, position }) => (
+      {/* Lixeiras de construção vivem na planta do andar, não no mapa. */}
+      {spreadBins(bins.filter((bin) => !bin.location?.isBuilding)).map(({ bin, position }) => (
         <Marker
           key={bin.id}
           position={position}
@@ -458,6 +462,17 @@ export function LocationsPage() {
                             </p>
                             {occupied && (
                               <p className="mt-1 text-xs text-muted-foreground">Com lixeira vinculada</p>
+                            )}
+                            {location.isBuilding && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="mt-2"
+                                onClick={() => navigate(`/locations/${location.id}/building`)}
+                              >
+                                Ver construção
+                              </Button>
                             )}
                           </div>
                           {canCreate && (

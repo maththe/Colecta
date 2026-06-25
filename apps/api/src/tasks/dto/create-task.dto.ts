@@ -4,10 +4,13 @@ import {
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
   ValidateIf,
 } from 'class-validator';
 import { TaskPriority, TaskStatus, UserRole } from '@prisma/client';
@@ -52,6 +55,25 @@ export class CreateTaskDto {
   @ValidateIf((o: CreateTaskDto) => o.latitude !== undefined && o.latitude !== null)
   @IsLongitude()
   longitude?: number | null;
+
+  // Posicionamento numa planta de construção: tarefa avulsa num ponto do andar
+  // (locationId aponta para a construção). Espelha TrashBin/Camera.
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  floor?: string | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  posX?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  posY?: number | null;
 
   @IsOptional()
   @IsString()

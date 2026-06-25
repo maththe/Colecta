@@ -32,14 +32,14 @@ import { isEmployeeRole, isTaskAssigneeRole } from '../auth/role-groups';
 type TaskWithBin = Prisma.TaskGetPayload<{
   include: {
     trashBin: { select: { id: true; name: true; code: true } };
-    location: { select: { id: true; name: true; latitude: true; longitude: true } };
+    location: { select: { id: true; name: true; latitude: true; longitude: true; isBuilding: true } };
     startedBy: { select: { id: true; name: true } };
   };
 }>;
 
 const taskInclude = {
   trashBin: { select: { id: true, name: true, code: true } },
-  location: { select: { id: true, name: true, latitude: true, longitude: true } },
+  location: { select: { id: true, name: true, latitude: true, longitude: true, isBuilding: true } },
   startedBy: { select: { id: true, name: true } },
 } satisfies Prisma.TaskInclude;
 
@@ -115,6 +115,9 @@ export class TasksService {
       dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
       latitude: dto.latitude ?? null,
       longitude: dto.longitude ?? null,
+      floor: dto.floor ?? null,
+      posX: dto.posX ?? null,
+      posY: dto.posY ?? null,
       trashBin: dto.trashBinId ? { connect: { id: dto.trashBinId } } : undefined,
       location: dto.locationId ? { connect: { id: dto.locationId } } : undefined,
       camera: dto.cameraId ? { connect: { id: dto.cameraId } } : undefined,
@@ -195,6 +198,9 @@ export class TasksService {
     if (dto.locationId !== undefined) {
       data.location = dto.locationId ? { connect: { id: dto.locationId } } : { disconnect: true };
     }
+    if (dto.floor !== undefined) data.floor = dto.floor ?? null;
+    if (dto.posX !== undefined) data.posX = dto.posX ?? null;
+    if (dto.posY !== undefined) data.posY = dto.posY ?? null;
 
     const isStarting =
       dto.status === TaskStatus.in_progress && current.status === TaskStatus.pending;

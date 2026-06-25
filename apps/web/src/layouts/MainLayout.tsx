@@ -37,9 +37,9 @@ const operationSection = {
   title: 'Operação',
   items: [
     { to: '/map', label: 'Mapa', Icon: Map },
+    { to: '/tasks', label: 'Tarefas', Icon: CheckSquare },
     { to: '/bins', label: 'Lixeiras', Icon: Trash2, roles: ['ADMIN', 'LIMPEZA'] },
     { to: '/security', label: 'Segurança', Icon: ShieldCheck, roles: ['ADMIN', 'SEGURANCA'] },
-    { to: '/tasks', label: 'Tarefas', Icon: CheckSquare },
   ],
 } satisfies { title?: string; items: NavItem[] };
 

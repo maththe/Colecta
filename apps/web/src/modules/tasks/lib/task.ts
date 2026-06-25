@@ -6,6 +6,13 @@ import type { Task, TaskPriority, TaskStatus } from '@/types';
 // Depois vem a lixeira (que já carrega sua própria posição) e a posição.
 // Retorna null quando a tarefa não tem nenhum vínculo geográfico.
 export function taskMapHref(task: Task): string | null {
+  // Tarefa dentro de uma construção: abre o mapa da planta, no andar e marcador
+  // certos (em vez do mapa principal, que mostraria só o marcador do prédio).
+  if (task.location?.isBuilding) {
+    const params = new URLSearchParams({ task: task.id });
+    if (task.floor) params.set('floor', task.floor);
+    return `/locations/${task.location.id}/building?${params.toString()}`;
+  }
   if (task.cameraId) return `/map?camera=${task.cameraId}`;
   if (task.trashBin) return `/map?bin=${task.trashBin.id}`;
   if (task.location) return `/map?location=${task.location.id}`;

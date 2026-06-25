@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Req,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import { getTenantUuid } from '../common/tenant.util';
 import { Roles } from '../auth/roles.decorator';
 import { CamerasService } from './cameras.service';
 import { CreateCameraDto } from './dto/create-camera.dto';
+import { UpdateCameraDto } from './dto/update-camera.dto';
 
 type AuthenticatedRequest = Request & {
   user?: {
@@ -48,6 +50,17 @@ export class CamerasController {
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateCameraDto, @Req() req: Request) {
     return this.service.create(dto, getTenantUuid(req));
+  }
+
+  // Edição de câmeras (inclui posicionamento na planta) é exclusiva do ADMIN.
+  @Patch(':id')
+  @Roles(UserRole.ADMIN)
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateCameraDto,
+    @Req() req: Request,
+  ) {
+    return this.service.update(id, dto, getTenantUuid(req));
   }
 
   @Delete(':id')

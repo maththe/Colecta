@@ -13,11 +13,21 @@ export interface Task {
   trashBinId: string | null;
   trashBin: { id: string; name: string; code: string } | null;
   locationId: string | null;
-  location: { id: string; name: string; latitude: number; longitude: number } | null;
+  location: {
+    id: string;
+    name: string;
+    latitude: number;
+    longitude: number;
+    isBuilding: boolean;
+  } | null;
   cameraId: string | null;
   // Coordenadas próprias quando a tarefa foi posicionada livremente no mapa.
   latitude: number | null;
   longitude: number | null;
+  // Posicionamento na planta de uma construção (locationId = construção).
+  floor: string | null;
+  posX: number | null;
+  posY: number | null;
   assigneeRole: UserRole;
   assigneeName: string | null;
   dueDate: string | null;
@@ -38,6 +48,9 @@ export interface CreateTaskInput {
   cameraId?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  floor?: string | null;
+  posX?: number | null;
+  posY?: number | null;
   assigneeRole: UserRole;
   assigneeName?: string | null;
   dueDate?: string | null;

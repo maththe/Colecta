@@ -28,6 +28,10 @@ export interface SecurityCamera {
   /** Posição da câmera no mapa. */
   latitude: number;
   longitude: number;
+  /** Posicionamento na planta de uma construção (prédio com andares). */
+  floor: string | null;
+  posX: number | null;
+  posY: number | null;
   lastSeenAt: string | null;
   imageUrl: string;
   notes?: string;
@@ -47,6 +51,9 @@ export interface CreateCameraInput {
   notes?: string;
   locationId?: string | null;
   trashBinId?: string | null;
+  floor?: string | null;
+  posX?: number | null;
+  posY?: number | null;
 }
 
 export interface SecurityLocation {

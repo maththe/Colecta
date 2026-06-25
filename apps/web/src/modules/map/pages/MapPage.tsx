@@ -490,6 +490,9 @@ export function MapPage() {
             onCreateTaskForLocation={canCreateTasks ? openTaskForLocation : undefined}
             onCreateTaskForCamera={canCreateTasks ? openTaskForCamera : undefined}
             onViewCameraImage={canViewCameras ? setPreviewCamera : undefined}
+            onViewBuilding={
+              canSeeBins ? (locationId) => navigate(`/locations/${locationId}/building`) : undefined
+            }
           />
         </div>
       )}

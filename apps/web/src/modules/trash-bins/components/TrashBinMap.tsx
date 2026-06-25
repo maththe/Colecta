@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { Eye, Plus } from 'lucide-react';
+import { Building2, Eye, Plus } from 'lucide-react';
 import type { Location, SecurityCamera, Task, TrashBin } from '@/types';
 import {
   CAMERA_STATUS_LABELS,
@@ -48,6 +48,8 @@ interface Props {
   onCreateTaskForCamera?: (camera: SecurityCamera) => void;
   /** Abre o modal com a imagem ao vivo da câmera. */
   onViewCameraImage?: (camera: SecurityCamera) => void;
+  /** Abre o mapa da construção a partir de uma lixeira/posição que é prédio. */
+  onViewBuilding?: (locationId: string) => void;
   /** When set, the map flies to this bin and opens its popup. */
   focusBinId?: string | null;
   /** When set, the map flies to this location and opens its popup. */
@@ -125,6 +127,7 @@ export function TrashBinMap({
   onCreateTaskForLocation,
   onCreateTaskForCamera,
   onViewCameraImage,
+  onViewBuilding,
   focusBinId,
   focusLocationId,
   focusCameraId,
@@ -171,7 +174,10 @@ export function TrashBinMap({
         <Marker
           key={locationKey(location.id)}
           position={[location.latitude, location.longitude]}
-          icon={buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.location)}
+          icon={buildMarkerIcon(
+            LOCATION_COLOR,
+            location.isBuilding ? MARKER_ICONS.building : MARKER_ICONS.location,
+          )}
           ref={(ref) => {
             markerRefs.current[locationKey(location.id)] = ref;
           }}
@@ -195,10 +201,24 @@ export function TrashBinMap({
                 Definir tarefa
               </Button>
             )}
+            {onViewBuilding && location.isBuilding && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-2 w-full"
+                onClick={() => onViewBuilding(location.id)}
+              >
+                <Building2 className="h-3.5 w-3.5" />
+                Ver construção
+              </Button>
+            )}
           </Popup>
         </Marker>
       ))}
-      {spreadBins(bins).map(({ bin, position }) => (
+      {/* Lixeiras de construção não aparecem no mapa: elas vivem na planta do
+          andar (mapa da construção). Aqui só as lixeiras "ao ar livre". */}
+      {spreadBins(bins.filter((bin) => !bin.location?.isBuilding)).map(({ bin, position }) => (
         <Marker
           key={bin.id}
           position={position}

@@ -8,6 +8,12 @@ interface Props {
   initial?: TrashBin | null;
   defaults?: Partial<CreateTrashBinInput>;
   submitting?: boolean;
+  /**
+   * Quando a lixeira pertence a uma construção: fixa a localização (prédio),
+   * esconde os campos de lat/lng e mostra o seletor de andar. A posição interna
+   * (posX/posY) é definida arrastando a lixeira no mapa da construção.
+   */
+  building?: { locationId: string; floors: string[]; defaultFloor?: string };
   onCancel: () => void;
   onSubmit: (values: CreateTrashBinInput) => void | Promise<void>;
 }
@@ -19,13 +25,21 @@ type FormValues = {
   latitude: string;
   longitude: string;
   capacityLiters: string;
+  floor: string;
 };
 
 function numberToInput(value: number | undefined): string {
   return value === undefined ? '' : String(value);
 }
 
-export function TrashBinForm({ initial, defaults, submitting, onCancel, onSubmit }: Props) {
+export function TrashBinForm({
+  initial,
+  defaults,
+  submitting,
+  building,
+  onCancel,
+  onSubmit,
+}: Props) {
   const {
     register,
     handleSubmit,
@@ -40,6 +54,7 @@ export function TrashBinForm({ initial, defaults, submitting, onCancel, onSubmit
       capacityLiters: initial
         ? String(initial.capacityLiters)
         : String(defaults?.capacityLiters ?? 100),
+      floor: initial?.floor ?? defaults?.floor ?? building?.defaultFloor ?? '',
     },
   });
 
@@ -48,10 +63,19 @@ export function TrashBinForm({ initial, defaults, submitting, onCancel, onSubmit
       name: values.name.trim(),
       code: values.code.trim(),
       locationDescription: values.locationDescription?.trim() || undefined,
-      latitude: Number(values.latitude),
-      longitude: Number(values.longitude),
       capacityLiters: Number(values.capacityLiters),
     };
+
+    if (building) {
+      // Lixeira dentro do prédio: vincula à localização existente e ao andar.
+      // Lat/lng são herdados da construção, então não os enviamos.
+      payload.locationId = building.locationId;
+      payload.floor = values.floor || null;
+    } else {
+      payload.latitude = Number(values.latitude);
+      payload.longitude = Number(values.longitude);
+    }
+
     return onSubmit(payload);
   });
 
@@ -78,55 +102,78 @@ export function TrashBinForm({ initial, defaults, submitting, onCancel, onSubmit
         {errors.code && <p className="text-xs text-destructive">{errors.code.message}</p>}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="bin-loc">Descrição / localização</Label>
-        <Input
-          id="bin-loc"
-          placeholder="Próxima ao quiosque"
-          {...register('locationDescription')}
-        />
-      </div>
+      {!building && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="bin-loc">Descrição / localização</Label>
+          <Input
+            id="bin-loc"
+            placeholder="Próxima ao quiosque"
+            {...register('locationDescription')}
+          />
+        </div>
+      )}
 
-      <div className="grid grid-cols-2 gap-4">
+      {building ? (
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="bin-lat">Latitude</Label>
-          <Input
-            id="bin-lat"
-            type="number"
-            step="any"
-            {...register('latitude', {
-              required: 'Informe a latitude',
-              validate: (v) => {
-                const n = Number(v);
-                if (Number.isNaN(n)) return 'Latitude inválida';
-                if (n < -90 || n > 90) return 'Entre -90 e 90';
-                return true;
-              },
-            })}
-            aria-invalid={!!errors.latitude}
-          />
-          {errors.latitude && <p className="text-xs text-destructive">{errors.latitude.message}</p>}
+          <Label htmlFor="bin-floor">Andar</Label>
+          <select
+            id="bin-floor"
+            className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            {...register('floor')}
+          >
+            <option value="">Sem andar</option>
+            {building.floors.map((floor) => (
+              <option key={floor} value={floor}>
+                {floor}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            A posição na planta é definida arrastando a lixeira no mapa da construção.
+          </p>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="bin-lng">Longitude</Label>
-          <Input
-            id="bin-lng"
-            type="number"
-            step="any"
-            {...register('longitude', {
-              required: 'Informe a longitude',
-              validate: (v) => {
-                const n = Number(v);
-                if (Number.isNaN(n)) return 'Longitude inválida';
-                if (n < -180 || n > 180) return 'Entre -180 e 180';
-                return true;
-              },
-            })}
-            aria-invalid={!!errors.longitude}
-          />
-          {errors.longitude && <p className="text-xs text-destructive">{errors.longitude.message}</p>}
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="bin-lat">Latitude</Label>
+            <Input
+              id="bin-lat"
+              type="number"
+              step="any"
+              {...register('latitude', {
+                required: 'Informe a latitude',
+                validate: (v) => {
+                  const n = Number(v);
+                  if (Number.isNaN(n)) return 'Latitude inválida';
+                  if (n < -90 || n > 90) return 'Entre -90 e 90';
+                  return true;
+                },
+              })}
+              aria-invalid={!!errors.latitude}
+            />
+            {errors.latitude && <p className="text-xs text-destructive">{errors.latitude.message}</p>}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="bin-lng">Longitude</Label>
+            <Input
+              id="bin-lng"
+              type="number"
+              step="any"
+              {...register('longitude', {
+                required: 'Informe a longitude',
+                validate: (v) => {
+                  const n = Number(v);
+                  if (Number.isNaN(n)) return 'Longitude inválida';
+                  if (n < -180 || n > 180) return 'Entre -180 e 180';
+                  return true;
+                },
+              })}
+              aria-invalid={!!errors.longitude}
+            />
+            {errors.longitude && <p className="text-xs text-destructive">{errors.longitude.message}</p>}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="bin-cap">Capacidade (litros)</Label>

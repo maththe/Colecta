@@ -89,6 +89,10 @@ model TrashBin {
   mqttTopic      String?
   distanceEmptyCm Float?
   distanceFullCm  Float?
+  // Posicionamento dentro de uma construção (prédio com andares).
+  floor          String?  // andar onde a lixeira está, ex: "Térreo", "2", "-1"
+  posX           Float?   // posição horizontal na planta do andar (0-100, %)
+  posY           Float?   // posição vertical na planta do andar (0-100, %)
   lastSeenAt     DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -112,6 +116,12 @@ model Location {
   description String?
   latitude    Float
   longitude   Float
+  // Quando a localização é uma construção (prédio), as lixeiras se distribuem
+  // por andares e ganham posição interna na planta de cada andar.
+  isBuilding  Boolean  @default(false)
+  floorsCount Int?
+  // Mapa "andar -> imagem da planta (data URL)" para o mapa da construção.
+  floorPlans  Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -136,6 +146,10 @@ model Camera {
   fps         Int
   latitude    Float
   longitude   Float
+  // Posicionamento dentro de uma construção (prédio com andares), espelhando TrashBin.
+  floor       String?  // andar onde a câmera está, ex: "Térreo", "2", "-1"
+  posX        Float?   // posição horizontal na planta do andar (0-100, %)
+  posY        Float?   // posição vertical na planta do andar (0-100, %)
   imageUrl    String?
   notes       String?
   lastSeenAt  DateTime?
@@ -198,6 +212,11 @@ model Task {
   // vínculo a lixeira/posição/câmera). Preenchidas juntas ou ambas nulas.
   latitude     Float?
   longitude    Float?
+  // Posicionamento dentro da planta de uma construção: tarefa avulsa colocada
+  // num ponto do andar (locationId = construção). Espelha TrashBin/Camera.
+  floor        String?  // andar onde a tarefa está, ex: "Térreo", "2", "-1"
+  posX         Float?   // posição horizontal na planta do andar (0-100, %)
+  posY         Float?   // posição vertical na planta do andar (0-100, %)
   assigneeRole UserRole
   assigneeName String?
   dueDate      DateTime?

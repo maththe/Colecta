@@ -355,6 +355,15 @@ export function BinsPage() {
                                 <MapPin className="h-4 w-4" />
                                 Ver no mapa
                               </Button>
+                              {bin.location?.isBuilding && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => navigate(`/locations/${bin.locationId}/building`)}
+                                >
+                                  Ver construção
+                                </Button>
+                              )}
                               {canManageBins && (
                                 <>
                                   <Button variant="outline" size="sm" onClick={() => openEdit(bin)}>

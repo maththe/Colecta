@@ -1,9 +1,10 @@
-import type { CreateLocationInput, Location } from '@/types';
+import type { BuildingMap, CreateLocationInput, Location } from '@/types';
 import { request } from '@/lib/api/client';
 
 export const locationsApi = {
   list: () => request<Location[]>('/locations'),
   get: (id: string) => request<Location>(`/locations/${id}`),
+  getBuilding: (id: string) => request<BuildingMap>(`/locations/${id}/building`),
   create: (data: CreateLocationInput) =>
     request<Location>('/locations', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<CreateLocationInput>) =>

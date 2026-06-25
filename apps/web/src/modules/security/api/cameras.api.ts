@@ -6,6 +6,8 @@ export const camerasApi = {
   get: (id: string) => request<SecurityCamera>(`/cameras/${id}`),
   create: (data: CreateCameraInput) =>
     request<SecurityCamera>('/cameras', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<CreateCameraInput>) =>
+    request<SecurityCamera>(`/cameras/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   remove: (id: string) =>
     request<{ id: string }>(`/cameras/${id}`, { method: 'DELETE' }),
 };
