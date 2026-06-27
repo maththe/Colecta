@@ -1,5 +1,5 @@
 import L from 'leaflet';
-import type { SecurityCamera, TaskPriority, TrashBin, TrashBinStatus } from '@/types';
+import type { SecurityCamera, TaskPriority, TrashBinStatus } from '@/types';
 
 // Cores e ícones compartilhados por todos os mapas (mapa principal e a página
 // "Adicionar no mapa"), para que os marcadores sigam exatamente o mesmo padrão
@@ -50,9 +50,6 @@ export const MARKER_ICONS = {
   task: `<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/>
     <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
     <path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>`,
-  // House — usado para lixeiras dentro de uma construção (prédio).
-  building: `<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-    <polyline points="9 22 9 12 15 12 15 22"/>`,
 } as const;
 
 // Marcador padrão único: círculo colorido (cor = status/categoria) com o ícone
@@ -81,36 +78,6 @@ export function buildMarkerIcon(color: string, icon: string, size = 28): L.DivIc
   });
 }
 
-// As lixeiras não têm coordenada própria: herdam a lat/lng exata da sua
-// localização. Logo, várias lixeiras de uma mesma posição (e o próprio marcador
-// da posição) caem no mesmo pixel. Espalhamos as lixeiras de cada ponto num
-// pequeno círculo (~18 m) para que todas — e a posição embaixo — fiquem visíveis
-// e clicáveis. ~0.00016° de latitude ≈ 18 m.
-const BIN_SPREAD_RADIUS = 0.00016;
-
-export function spreadBins(bins: TrashBin[]): { bin: TrashBin; position: [number, number] }[] {
-  const groups = new Map<string, TrashBin[]>();
-  for (const bin of bins) {
-    const key = `${bin.latitude},${bin.longitude}`;
-    const group = groups.get(key);
-    if (group) group.push(bin);
-    else groups.set(key, [bin]);
-  }
-  const placed: { bin: TrashBin; position: [number, number] }[] = [];
-  for (const group of groups.values()) {
-    const count = group.length;
-    group.forEach((bin, index) => {
-      // Mesmo com uma única lixeira aplicamos o deslocamento, para tirá-la de
-      // cima do marcador da posição.
-      const angle = (index / count) * 2 * Math.PI;
-      placed.push({
-        bin,
-        position: [
-          bin.latitude + BIN_SPREAD_RADIUS * Math.sin(angle),
-          bin.longitude + BIN_SPREAD_RADIUS * Math.cos(angle),
-        ],
-      });
-    });
-  }
-  return placed;
-}
+// Nota: `spreadBins()` foi aposentado. Lixeiras ao ar livre têm coordenada
+// própria e são renderizadas na posição exata (`[bin.latitude, bin.longitude]`),
+// com clustering (react-leaflet-cluster) cuidando da sobreposição visual.

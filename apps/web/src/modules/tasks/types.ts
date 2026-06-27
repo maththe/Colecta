@@ -10,6 +10,8 @@ export interface Task {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
+  /** Recinto ao qual a tarefa pertence (FK obrigatória no back). */
+  siteId: string;
   trashBinId: string | null;
   trashBin: { id: string; name: string; code: string } | null;
   locationId: string | null;

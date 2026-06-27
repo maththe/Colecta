@@ -5,3 +5,5 @@ export * from '@/modules/tasks/types';
 export * from '@/modules/notifications/types';
 export * from '@/modules/analytics/types';
 export * from '@/modules/security/types';
+export * from '@/modules/sites/types';
+export * from '@/modules/zones/types';

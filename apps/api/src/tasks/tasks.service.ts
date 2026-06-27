@@ -28,6 +28,7 @@ import {
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailerService } from '../mailer/mailer.service';
 import { isEmployeeRole, isTaskAssigneeRole } from '../auth/role-groups';
+import { resolveTaskSiteId } from '../common/geo.util';
 
 type TaskWithBin = Prisma.TaskGetPayload<{
   include: {
@@ -104,6 +105,15 @@ export class TasksService {
     this.assertAssigneeRole(dto.assigneeRole);
     this.assertTrashBinAssigneeRole(dto.trashBinId, dto.assigneeRole);
 
+    const siteId = await resolveTaskSiteId(this.prisma, {
+      tenantUuid,
+      trashBinId: dto.trashBinId ?? null,
+      locationId: dto.locationId ?? null,
+      cameraId: dto.cameraId ?? null,
+      latitude: dto.latitude ?? null,
+      longitude: dto.longitude ?? null,
+    });
+
     const data: Prisma.TaskCreateInput = {
       tenantUuid,
       title: dto.title,
@@ -118,6 +128,7 @@ export class TasksService {
       floor: dto.floor ?? null,
       posX: dto.posX ?? null,
       posY: dto.posY ?? null,
+      site: { connect: { id: siteId } },
       trashBin: dto.trashBinId ? { connect: { id: dto.trashBinId } } : undefined,
       location: dto.locationId ? { connect: { id: dto.locationId } } : undefined,
       camera: dto.cameraId ? { connect: { id: dto.cameraId } } : undefined,
@@ -136,6 +147,13 @@ export class TasksService {
     if (dto.locationId) await this.assertLocationExists(dto.locationId, tenantUuid);
     if (dto.cameraId) await this.assertCameraExists(dto.cameraId, tenantUuid);
 
+    const siteId = await resolveTaskSiteId(this.prisma, {
+      tenantUuid,
+      trashBinId: dto.trashBinId ?? null,
+      locationId: dto.locationId ?? null,
+      cameraId: dto.cameraId ?? null,
+    });
+
     const created = await this.prisma.task.create({
       data: {
         tenantUuid,
@@ -147,6 +165,7 @@ export class TasksService {
         assigneeRole: UserRole.SEGURANCA,
         assigneeName: null,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+        site: { connect: { id: siteId } },
         trashBin: dto.trashBinId ? { connect: { id: dto.trashBinId } } : undefined,
         location: dto.locationId ? { connect: { id: dto.locationId } } : undefined,
         camera: dto.cameraId ? { connect: { id: dto.cameraId } } : undefined,
@@ -240,6 +259,19 @@ export class TasksService {
       data.completedAt = null;
     }
 
+    // Recomputa o Site quando o vínculo (lixeira/construção) muda.
+    if (dto.trashBinId !== undefined || dto.locationId !== undefined) {
+      const siteId = await resolveTaskSiteId(this.prisma, {
+        tenantUuid,
+        trashBinId: dto.trashBinId !== undefined ? dto.trashBinId : current.trashBinId,
+        locationId: dto.locationId !== undefined ? dto.locationId : current.locationId,
+        cameraId: current.cameraId,
+        latitude: current.latitude,
+        longitude: current.longitude,
+      });
+      data.site = { connect: { id: siteId } };
+    }
+
     return this.prisma.task.update({
       where: { id },
       data,
@@ -280,6 +312,11 @@ export class TasksService {
       if (issues.length === 0) return null;
       const now = new Date();
       const priority = composePriority(issues);
+      // Auto-tarefa sempre tem bin → herda o Site da lixeira.
+      const siteId = await resolveTaskSiteId(this.prisma, {
+        tenantUuid,
+        trashBinId: bin.id,
+      });
       const created = await this.prisma.task.create({
         data: {
           tenantUuid,
@@ -290,6 +327,7 @@ export class TasksService {
           kind: TaskKind.auto,
           issues,
           assigneeRole: UserRole.LIMPEZA,
+          site: { connect: { id: siteId } },
           trashBin: { connect: { id: bin.id } },
           dueDate: computeDueDate(issues, now),
         },

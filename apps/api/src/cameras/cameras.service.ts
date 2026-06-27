@@ -3,6 +3,7 @@ import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCameraDto } from './dto/create-camera.dto';
 import { UpdateCameraDto } from './dto/update-camera.dto';
+import { resolveSiteId } from '../common/geo.util';
 
 /**
  * Remove qualquer menção a "Lixeira <código>" do nome da câmera. Usado para a
@@ -96,6 +97,14 @@ export class CamerasService {
 
   async create(dto: CreateCameraDto, tenantUuid: string): Promise<CameraResponse> {
     try {
+      const siteId = await resolveSiteId(this.prisma, {
+        tenantUuid,
+        locationId: dto.locationId ?? null,
+        siteId: dto.siteId ?? null,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        enforceBoundary: true,
+      });
       const camera = await this.prisma.camera.create({
         data: {
           tenantUuid,
@@ -103,6 +112,7 @@ export class CamerasService {
           name: dto.name.trim(),
           latitude: dto.latitude,
           longitude: dto.longitude,
+          siteId,
           // Cadastro simplificado: campos técnicos ganham um padrão quando omitidos.
           model: dto.model?.trim() || 'Não informado',
           ipAddress: dto.ipAddress?.trim() || 'Não informado',
@@ -135,7 +145,7 @@ export class CamerasService {
   ): Promise<CameraResponse> {
     const current = await this.prisma.camera.findFirst({
       where: { id, tenantUuid },
-      select: { id: true },
+      select: { id: true, locationId: true, latitude: true, longitude: true },
     });
     if (!current) throw new NotFoundException(`Camera ${id} not found`);
 
@@ -160,6 +170,25 @@ export class CamerasService {
     if (dto.floor !== undefined) data.floor = dto.floor ?? null;
     if (dto.posX !== undefined) data.posX = dto.posX ?? null;
     if (dto.posY !== undefined) data.posY = dto.posY ?? null;
+
+    // Recomputa o belonging (siteId) quando o vínculo com a construção, a
+    // coordenada própria ou um siteId explícito mudam.
+    if (
+      dto.locationId !== undefined ||
+      dto.latitude !== undefined ||
+      dto.longitude !== undefined ||
+      dto.siteId !== undefined
+    ) {
+      const siteId = await resolveSiteId(this.prisma, {
+        tenantUuid,
+        locationId: dto.locationId !== undefined ? dto.locationId : current.locationId,
+        siteId: dto.siteId ?? null,
+        latitude: dto.latitude !== undefined ? dto.latitude : current.latitude,
+        longitude: dto.longitude !== undefined ? dto.longitude : current.longitude,
+        enforceBoundary: true,
+      });
+      data.site = { connect: { id: siteId } };
+    }
 
     try {
       const camera = await this.prisma.camera.update({

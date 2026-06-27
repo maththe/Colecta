@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { TaskStatus } from '@prisma/client';
+import { TaskStatus, TrashBinStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface AnalyticsRange {
@@ -28,6 +28,15 @@ export interface BinActivityRow {
   name: string;
   completed: number;
   pending: number;
+}
+
+export interface ZoneBinsRow {
+  zoneId: string | null;
+  zoneName: string;
+  color: string | null;
+  binCount: number;
+  fullCount: number;
+  avgFillLevel: number | null;
 }
 
 const DEFAULT_RANGE_DAYS = 30;
@@ -260,6 +269,70 @@ export class AnalyticsService {
     return [...rows.values()]
       .sort((a, b) => b.completed + b.pending - (a.completed + a.pending))
       .slice(0, 10);
+  }
+
+  /**
+   * Distribuição das lixeiras por zona, usando o `zoneId` **persistido** (não
+   * recalcula a cada request). Inclui zonas sem lixeiras e um balde "Sem zona"
+   * para as lixeiras fora de qualquer zona. Opcionalmente restrito a um Site.
+   */
+  async binsByZone(tenantUuid: string, siteId?: string): Promise<ZoneBinsRow[]> {
+    const siteFilter = siteId ? { siteId } : {};
+    const [zones, bins] = await Promise.all([
+      this.prisma.zone.findMany({
+        where: { tenantUuid, ...siteFilter },
+        select: { id: true, name: true, color: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.trashBin.findMany({
+        where: { tenantUuid, ...siteFilter },
+        select: { zoneId: true, status: true, fillLevel: true },
+      }),
+    ]);
+
+    const NONE = '__none__';
+    const rows = new Map<string, ZoneBinsRow>();
+    const fill = new Map<string, { sum: number; count: number }>();
+    for (const z of zones) {
+      rows.set(z.id, {
+        zoneId: z.id,
+        zoneName: z.name,
+        color: z.color,
+        binCount: 0,
+        fullCount: 0,
+        avgFillLevel: null,
+      });
+    }
+
+    for (const bin of bins) {
+      const key = bin.zoneId ?? NONE;
+      if (!rows.has(key)) {
+        rows.set(key, {
+          zoneId: bin.zoneId,
+          zoneName: bin.zoneId ? 'Zona removida' : 'Sem zona',
+          color: null,
+          binCount: 0,
+          fullCount: 0,
+          avgFillLevel: null,
+        });
+      }
+      const row = rows.get(key)!;
+      row.binCount += 1;
+      if (bin.status === TrashBinStatus.full) row.fullCount += 1;
+      if (bin.fillLevel != null) {
+        const acc = fill.get(key) ?? { sum: 0, count: 0 };
+        acc.sum += bin.fillLevel;
+        acc.count += 1;
+        fill.set(key, acc);
+      }
+    }
+
+    for (const [key, row] of rows) {
+      const acc = fill.get(key);
+      row.avgFillLevel = acc && acc.count > 0 ? acc.sum / acc.count : null;
+    }
+
+    return [...rows.values()];
   }
 }
 

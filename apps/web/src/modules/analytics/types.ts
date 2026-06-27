@@ -35,3 +35,12 @@ export interface ThroughputBucket {
   completed: number;
   created: number;
 }
+
+export interface ZoneBinsRow {
+  zoneId: string | null;
+  zoneName: string;
+  color: string | null;
+  binCount: number;
+  fullCount: number;
+  avgFillLevel: number | null;
+}

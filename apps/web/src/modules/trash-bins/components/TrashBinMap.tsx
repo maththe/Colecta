@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
-import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { useEffect, useMemo, useRef } from 'react';
+import { MapContainer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import { Building2, Eye, Plus } from 'lucide-react';
-import type { Location, SecurityCamera, Task, TrashBin } from '@/types';
+import type { CreateSiteInput, Location, SecurityCamera, Site, Task, TrashBin, Zone } from '@/types';
 import {
   CAMERA_STATUS_LABELS,
   TASK_PRIORITY_LABELS,
@@ -12,12 +13,14 @@ import {
 } from '@/types';
 import { formatRelativeTime } from '@/lib/format';
 import { Button } from '@/components/ui/button';
+import { SiteMapLayers } from '@/modules/sites/components/SiteMapLayers';
+import { SiteBoundaryEditor } from '@/modules/sites/components/SiteBoundaryEditor';
+import { ZoneEditor } from '@/modules/zones/components/ZoneEditor';
 import {
   buildMarkerIcon,
   CAMERA_COLOR,
   LOCATION_COLOR,
   MARKER_ICONS,
-  spreadBins,
   STATUS_COLOR,
   TASK_COLOR,
 } from './map-markers';
@@ -29,6 +32,20 @@ import {
 interface Props {
   bins: TrashBin[];
   center: [number, number];
+  /** Recinto exibido: define contorno (máscara/limites), base e visão inicial. */
+  site: Site;
+  /** Zoom inicial do mapa (vem do Site quando definido). */
+  zoom?: number;
+  /** Habilita o editor de contorno e de zonas (somente ADMIN). */
+  canEditSite?: boolean;
+  /** Persiste alterações do Site (contorno/visão) via PATCH /sites/:id. */
+  onSaveSite?: (data: Partial<CreateSiteInput>) => Promise<void>;
+  /** Zonas do recinto (para exibir polígonos e alimentar o editor). */
+  zones?: Zone[];
+  /** Quando true, desenha os polígonos das zonas no mapa. */
+  showZones?: boolean;
+  /** Recarrega o mapa após criar/editar/excluir uma zona. */
+  onZonesChanged?: () => void;
   /** Posições cadastradas (exibidas como marcadores azuis). */
   locations?: Location[];
   /** Câmeras de segurança (exibidas como marcadores roxos). */
@@ -115,6 +132,13 @@ function MapFocus({
 export function TrashBinMap({
   bins,
   center,
+  site,
+  zoom = 15,
+  canEditSite,
+  onSaveSite,
+  zones = [],
+  showZones = true,
+  onZonesChanged,
   locations = [],
   cameras = [],
   tasks = [],
@@ -131,6 +155,10 @@ export function TrashBinMap({
   focusTaskId,
 }: Props) {
   const markerRefs = useRef<Record<string, L.Marker | null>>({});
+
+  // Só as lixeiras ao ar livre vão ao mapa principal (as de construção vivem na
+  // planta do andar). Renderizadas na coordenada exata — sem spreadBins.
+  const outdoorBins = useMemo(() => bins.filter((bin) => !bin.location), [bins]);
 
   const focusTarget = (() => {
     if (focusCameraId) {
@@ -157,21 +185,22 @@ export function TrashBinMap({
   return (
     <MapContainer
       center={center}
-      zoom={15}
+      zoom={zoom}
       style={{ height: '100%', width: '100%' }}
       scrollWheelZoom
     >
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-      />
+      <SiteMapLayers site={site} zones={zones} showZones={showZones} />
+      {canEditSite && onSaveSite && <SiteBoundaryEditor site={site} onSave={onSaveSite} />}
+      {canEditSite && onZonesChanged && (
+        <ZoneEditor site={site} zones={zones} onChanged={onZonesChanged} />
+      )}
       <MapFocus target={focusTarget} markerRefs={markerRefs} />
       <MapClickHandler picking={picking} onPickPoint={onPickPoint} />
       {locations.map((location) => (
         <Marker
           key={locationKey(location.id)}
           position={[location.latitude, location.longitude]}
-          icon={buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.building)}
+          icon={buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.location)}
           ref={(ref) => {
             markerRefs.current[locationKey(location.id)] = ref;
           }}
@@ -199,11 +228,14 @@ export function TrashBinMap({
         </Marker>
       ))}
       {/* Lixeiras de construção não aparecem no mapa: elas vivem na planta do
-          andar (mapa da construção). Aqui só as lixeiras "ao ar livre". */}
-      {spreadBins(bins.filter((bin) => !bin.location)).map(({ bin, position }) => (
+          andar (mapa da construção). Aqui só as lixeiras "ao ar livre",
+          agrupadas em cluster e na coordenada exata. A `key={bin.id}` estável em
+          cada Marker prepara a convivência com o polling da Fase 3. */}
+      <MarkerClusterGroup chunkedLoading>
+      {outdoorBins.map((bin) => (
         <Marker
           key={bin.id}
-          position={position}
+          position={[bin.latitude, bin.longitude]}
           icon={buildMarkerIcon(STATUS_COLOR[bin.status], MARKER_ICONS.bin)}
           ref={(ref) => {
             markerRefs.current[bin.id] = ref;
@@ -230,6 +262,7 @@ export function TrashBinMap({
           </Popup>
         </Marker>
       ))}
+      </MarkerClusterGroup>
       {cameras.map((camera) => (
         <Marker
           key={cameraKey(camera.id)}

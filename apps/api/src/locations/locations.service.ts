@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CamerasService } from '../cameras/cameras.service';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { UpdateLocationDto } from './dto/update-location.dto';
+import { resolveSiteId } from '../common/geo.util';
 
 // Campos retornados em listagens. Exclui `floorPlans` (data URLs das plantas,
 // potencialmente grandes) — elas só são necessárias no mapa da construção
@@ -146,6 +147,16 @@ export class LocationsService {
 
   async create(dto: CreateLocationDto, tenantUuid: string): Promise<Location> {
     this.assertValidFloorPlans(dto.floorPlans);
+    // A construção é a raiz do belonging indoor: resolve o próprio Site pela
+    // coordenada (Turf) ou pelo siteId explícito, caindo no Site default.
+    const siteId = await resolveSiteId(this.prisma, {
+      tenantUuid,
+      locationId: null,
+      siteId: dto.siteId ?? null,
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      enforceBoundary: true,
+    });
     return this.prisma.location.create({
       data: {
         tenantUuid,
@@ -155,12 +166,13 @@ export class LocationsService {
         longitude: dto.longitude,
         floorsCount: dto.floorsCount ?? null,
         floorPlans: dto.floorPlans ?? undefined,
+        site: { connect: { id: siteId } },
       },
     });
   }
 
   async update(id: string, dto: UpdateLocationDto, tenantUuid: string): Promise<Location> {
-    await this.findOne(id, tenantUuid);
+    const existing = await this.findOne(id, tenantUuid);
     this.assertValidFloorPlans(dto.floorPlans);
 
     const data: Prisma.LocationUpdateInput = {};
@@ -173,10 +185,40 @@ export class LocationsService {
       data.floorPlans = dto.floorPlans ?? Prisma.DbNull;
     }
 
-    return this.prisma.location.update({
-      where: { id },
-      data,
-    });
+    // Recomputa o Site da construção quando a coordenada ou um siteId explícito
+    // mudam.
+    let nextSiteId = existing.siteId;
+    if (dto.siteId !== undefined || dto.latitude !== undefined || dto.longitude !== undefined) {
+      nextSiteId = await resolveSiteId(this.prisma, {
+        tenantUuid,
+        locationId: null,
+        siteId: dto.siteId ?? null,
+        latitude: dto.latitude !== undefined ? dto.latitude : existing.latitude,
+        longitude: dto.longitude !== undefined ? dto.longitude : existing.longitude,
+        enforceBoundary: true,
+      });
+    }
+
+    const siteChanged = nextSiteId !== existing.siteId;
+    if (!siteChanged) {
+      return this.prisma.location.update({ where: { id }, data });
+    }
+
+    // Cascata: reatribuir o Site da construção propaga para suas lixeiras e
+    // câmeras (invariante indoor: elas herdam location.siteId). Em transação.
+    data.site = { connect: { id: nextSiteId } };
+    const [location] = await this.prisma.$transaction([
+      this.prisma.location.update({ where: { id }, data }),
+      this.prisma.trashBin.updateMany({
+        where: { locationId: id, tenantUuid },
+        data: { siteId: nextSiteId },
+      }),
+      this.prisma.camera.updateMany({
+        where: { locationId: id, tenantUuid },
+        data: { siteId: nextSiteId },
+      }),
+    ]);
+    return location;
   }
 
   async remove(id: string, tenantUuid: string): Promise<{ id: string }> {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet';
+import { MapContainer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import { ArrowLeft, Building2, Camera, MapPin, Trash2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { ErrorState, LoadingState, EmptyState } from '@/components/States';
@@ -16,15 +16,19 @@ import type {
   CreateTrashBinInput,
   Location,
   SecurityCamera,
+  Site,
   TrashBin,
+  Zone,
 } from '@/types';
 import { Button } from '@/components/ui/button';
+import { SiteMapLayers } from '@/modules/sites/components/SiteMapLayers';
+import { isPointInsideBoundary } from '@/modules/sites/lib/site-geo';
+import { MapBaseLayer } from '@/modules/trash-bins/components/MapBaseLayer';
 import {
   buildMarkerIcon,
   CAMERA_COLOR,
   LOCATION_COLOR,
   MARKER_ICONS,
-  spreadBins,
   STATUS_COLOR,
 } from '@/modules/trash-bins/components/map-markers';
 
@@ -68,6 +72,8 @@ function MapClickHandler({
 }
 
 function PlacementMap({
+  site,
+  zones,
   locations,
   bins,
   cameras,
@@ -77,6 +83,8 @@ function PlacementMap({
   mode,
   onPick,
 }: {
+  site: Site | null;
+  zones: Zone[];
   locations: Location[];
   bins: TrashBin[];
   cameras: SecurityCamera[];
@@ -89,22 +97,26 @@ function PlacementMap({
   return (
     <MapContainer
       center={center}
-      zoom={15}
+      zoom={site?.defaultZoom ?? 15}
       className={canCreate ? 'cursor-crosshair' : undefined}
       style={{ height: '100%', width: '100%' }}
       scrollWheelZoom
     >
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-      />
+      {/* Recinto: mesma base/máscara/limites/zonas do mapa principal. Sem Site
+          carregado (caso raro), cai numa base OSM simples para o mapa não ficar
+          em branco. */}
+      {site ? (
+        <SiteMapLayers site={site} zones={zones} zonesInteractive={false} />
+      ) : (
+        <MapBaseLayer baseMode="osm_muted" />
+      )}
       <MapClickHandler disabled={!canCreate} mode={mode} onPick={onPick} />
 
       {locations.map((location) => (
         <Marker
           key={location.id}
           position={[location.latitude, location.longitude]}
-          icon={buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.building)}
+          icon={buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.location)}
         >
           <Popup>
             <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{location.name}</p>
@@ -115,11 +127,14 @@ function PlacementMap({
         </Marker>
       ))}
 
-      {/* Lixeiras de construção vivem na planta do andar, não no mapa. */}
-      {spreadBins(bins.filter((bin) => !bin.location)).map(({ bin, position }) => (
+      {/* Lixeiras de construção vivem na planta do andar, não no mapa. As ao ar
+          livre aparecem na coordenada exata (sem espalhamento artificial). */}
+      {bins
+        .filter((bin) => !bin.location)
+        .map((bin) => (
         <Marker
           key={bin.id}
-          position={position}
+          position={[bin.latitude, bin.longitude]}
           icon={buildMarkerIcon(STATUS_COLOR[bin.status], MARKER_ICONS.bin)}
         >
           <Popup>
@@ -151,7 +166,7 @@ function PlacementMap({
           position={[draftPlacement.latitude, draftPlacement.longitude]}
           icon={
             draftPlacement.mode === 'location'
-              ? buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.building, 34)
+              ? buildMarkerIcon(LOCATION_COLOR, MARKER_ICONS.location, 34)
               : draftPlacement.mode === 'camera'
                 ? buildMarkerIcon(CAMERA_COLOR.online, MARKER_ICONS.camera, 32)
                 : buildMarkerIcon(STATUS_COLOR.active, MARKER_ICONS.bin, 32)
@@ -168,9 +183,14 @@ export function LocationsPage() {
   const [locations, setLocations] = useState<Location[] | null>(null);
   const [bins, setBins] = useState<TrashBin[]>([]);
   const [cameras, setCameras] = useState<SecurityCamera[]>([]);
+  // Recinto e zonas exibidos no mapa (mono-site na v1: primeiro/único Site).
+  const [site, setSite] = useState<Site | null>(null);
+  const [zones, setZones] = useState<Zone[]>([]);
   const [mode, setMode] = useState<CreateMode>('location');
   const [error, setError] = useState<string | null>(null);
   const [draftPlacement, setDraftPlacement] = useState<DraftPlacement | null>(null);
+  // Aviso quando o usuário clica fora do recinto (clique não posiciona nada).
+  const [pickError, setPickError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
@@ -181,14 +201,18 @@ export function LocationsPage() {
   async function loadData() {
     setError(null);
     try {
-      const [locationData, binData, cameraData] = await Promise.all([
+      const [locationData, binData, cameraData, siteData, zoneData] = await Promise.all([
         api.locations.list(),
         api.trashBins.list(),
         api.cameras.list(),
+        api.sites.list().then((list) => list[0] ?? null),
+        api.zones.list(),
       ]);
       setLocations(locationData);
       setBins(binData);
       setCameras(cameraData);
+      setSite(siteData);
+      setZones(zoneData);
     } catch (err: unknown) {
       setError(err instanceof ApiError ? err.message : 'Falha ao carregar dados do mapa');
     }
@@ -199,6 +223,10 @@ export function LocationsPage() {
   }, []);
 
   const center = useMemo<[number, number]>(() => {
+    // Visão definida no recinto tem prioridade (igual ao mapa principal).
+    if (site && site.centerLat != null && site.centerLng != null) {
+      return [site.centerLat, site.centerLng];
+    }
     if (locations && locations.length > 0) {
       const sum = locations.reduce(
         (acc, location) => ({
@@ -219,7 +247,7 @@ export function LocationsPage() {
     }
 
     return DEFAULT_CENTER;
-  }, [bins, locations]);
+  }, [bins, locations, site]);
 
   const occupiedLocationIds = useMemo(
     () => new Set(bins.map((bin) => bin.locationId)),
@@ -247,6 +275,18 @@ export function LocationsPage() {
       ),
     [cameras],
   );
+
+  // Clique no mapa: só posiciona se a coordenada estiver dentro do recinto. O
+  // backend reforça a mesma regra (geo.util.enforceBoundary).
+  function handlePick(placement: DraftPlacement) {
+    if (site && !isPointInsideBoundary(site.boundary, placement.latitude, placement.longitude)) {
+      setDraftPlacement(null);
+      setPickError('Clique dentro do recinto (área clara do mapa) para adicionar um recurso.');
+      return;
+    }
+    setPickError(null);
+    setDraftPlacement(placement);
+  }
 
   function closeModal() {
     setDraftPlacement(null);
@@ -392,6 +432,12 @@ export function LocationsPage() {
       {error && <ErrorState message={error} />}
       {!locations && !error && <LoadingState label="Carregando mapa..." />}
 
+      {pickError && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+          {pickError}
+        </div>
+      )}
+
       {locations && (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
           <div
@@ -399,6 +445,8 @@ export function LocationsPage() {
             style={{ height: 'calc(100vh - 210px)' }}
           >
             <PlacementMap
+              site={site}
+              zones={zones}
               locations={locations}
               bins={bins}
               cameras={cameras}
@@ -406,7 +454,7 @@ export function LocationsPage() {
               draftPlacement={draftPlacement}
               canCreate={canCreate}
               mode={mode}
-              onPick={setDraftPlacement}
+              onPick={handlePick}
             />
           </div>
 

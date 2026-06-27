@@ -18,6 +18,10 @@ export interface TrashBin {
   id: string;
   name: string;
   code: string;
+  /** Recinto ao qual a lixeira pertence (FK obrigatória no back). */
+  siteId: string;
+  /** Zona temática (FK persistida, recalculada via Turf); null = fora de zona. */
+  zoneId: string | null;
   locationId: string | null;
   /** Construção à qual a lixeira pertence; `null` quando está ao ar livre. */
   location: Location | null;

@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Clock,
   Download,
+  Layers,
   Minus,
   RefreshCw,
   Trash2,
@@ -25,7 +26,8 @@ import {
   YAxis,
 } from 'recharts';
 import { api, ApiError } from '@/lib/api';
-import type { BinActivityRow, ThroughputBucket } from '@/types';
+import type { BinActivityRow, ThroughputBucket, ZoneBinsRow } from '@/types';
+import { zoneColor } from '@/modules/zones/lib/zone-geo';
 import { ErrorState } from '@/components/States';
 import { StatCard } from '@/components/StatCard';
 import { useAsyncData } from '@/hooks/useAsyncData';
@@ -256,6 +258,65 @@ function BinActivityChart({ data }: { data: BinActivityRow[] }) {
   );
 }
 
+function ZoneBinsChart({ data }: { data: ZoneBinsRow[] }) {
+  const chartData = useMemo(
+    () =>
+      data.map((r, index) => ({
+        name: r.zoneName,
+        Lixeiras: r.binCount,
+        Cheias: r.fullCount,
+        color: r.zoneId ? zoneColor(r.color, index) : CHART_COLORS.mutedForeground,
+      })),
+    [data],
+  );
+
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(160, chartData.length * 40)}>
+      <BarChart data={chartData} layout="vertical" barCategoryGap="25%" barGap={2}>
+        <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke={CHART_COLORS.border} />
+        <XAxis
+          type="number"
+          tick={{ fontSize: 11, fill: CHART_COLORS.mutedForeground }}
+          axisLine={false}
+          tickLine={false}
+          allowDecimals={false}
+        />
+        <YAxis
+          type="category"
+          dataKey="name"
+          tick={{ fontSize: 11, fill: CHART_COLORS.mutedForeground }}
+          axisLine={false}
+          tickLine={false}
+          width={90}
+        />
+        <Tooltip
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null;
+            return (
+              <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-md text-xs">
+                <p className="mb-1 font-medium text-foreground">{label}</p>
+                {payload.map((p) => (
+                  <p key={p.name} className="flex items-center gap-1.5 text-muted-foreground">
+                    <span className="h-2 w-2 rounded-full" style={{ background: p.color as string }} />
+                    {p.name}: <span className="font-medium text-foreground">{p.value}</span>
+                  </p>
+                ))}
+              </div>
+            );
+          }}
+          cursor={{ fill: CHART_COLORS.muted, radius: 4 }}
+        />
+        <Bar dataKey="Lixeiras" radius={[0, 3, 3, 0]}>
+          {chartData.map((row, index) => (
+            <Cell key={index} fill={row.color} />
+          ))}
+        </Bar>
+        <Bar dataKey="Cheias" fill={CHART_COLORS.mutedForeground} fillOpacity={0.35} radius={[0, 3, 3, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 function OnTimeBar({ rate }: { rate: number | null }) {
   if (rate === null) return <span className="text-xs text-muted-foreground">—</span>;
   const pct = Math.round(rate * 100);
@@ -277,13 +338,14 @@ export function AnalyticsPage() {
 
   const fetchAnalytics = useCallback(async () => {
     const range = rangeFor(preset);
-    const [summary, productivity, throughput, binActivity] = await Promise.all([
+    const [summary, productivity, throughput, binActivity, binsByZone] = await Promise.all([
       api.analytics.summary(range),
       api.analytics.productivity(range),
       api.analytics.throughput(12),
       api.analytics.bins(range),
+      api.analytics.binsByZone(),
     ]);
-    return { summary, productivity, throughput, binActivity };
+    return { summary, productivity, throughput, binActivity, binsByZone };
   }, [preset]);
 
   const {
@@ -296,6 +358,7 @@ export function AnalyticsPage() {
   const productivity = data?.productivity ?? null;
   const throughput = data?.throughput ?? null;
   const binActivity = data?.binActivity ?? null;
+  const binsByZone = data?.binsByZone ?? null;
 
   const exportCsv = async () => {
     setExporting(true);
@@ -470,6 +533,32 @@ export function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Lixeiras por zona (usa o zoneId persistido) */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Lixeiras por zona</CardTitle>
+              <CardDescription>
+                Distribuição das lixeiras pelas zonas do recinto (e cheias)
+              </CardDescription>
+            </div>
+            <Layers className="h-5 w-5 text-muted-foreground" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!binsByZone ? (
+            <div className="h-44 animate-pulse rounded-lg bg-muted" />
+          ) : binsByZone.length === 0 ? (
+            <div className="flex h-44 items-center justify-center text-sm text-muted-foreground">
+              Nenhuma zona cadastrada ainda.
+            </div>
+          ) : (
+            <ZoneBinsChart data={binsByZone} />
+          )}
+        </CardContent>
+      </Card>
 
       {/* Productivity table */}
       <section className="flex flex-col gap-3">

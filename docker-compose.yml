@@ -33,8 +33,10 @@ services:
       DATABASE_URL: postgresql://colecta:colecta@postgres:5432/colecta?schema=public
       PORT: "3333"
       NODE_ENV: production
-      # ATENÇÃO: defina um JWT_SECRET forte em produção (.env ou variável de ambiente)
-      JWT_SECRET: ${JWT_SECRET:-troque_este_segredo_em_producao}
+      # OBRIGATÓRIO: defina um JWT_SECRET forte (.env ou variável de ambiente).
+      # Sem fallback: o compose falha se a variável não estiver definida — a API
+      # também não sobe sem ela (ver apps/api/src/auth/jwt-secret.ts).
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET (use openssl rand -hex 32)}
       MQTT_INGEST_ENABLED: ${MQTT_INGEST_ENABLED:-true}
       MQTT_BROKER_URL: ${MQTT_BROKER_URL:-mqtt://broker.emqx.io:1883}
       MQTT_TOPIC: ${MQTT_TOPIC:-binovate/medidas}

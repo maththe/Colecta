@@ -6,6 +6,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -27,6 +28,12 @@ export class CreateLocationDto {
 
   @IsLongitude()
   longitude!: number;
+
+  // Recinto (Site) ao qual a construção pertence. Opcional: resolvido pela
+  // coordenada (Turf) caindo no Site default quando omitido.
+  @IsOptional()
+  @IsUUID()
+  siteId?: string | null;
 
   @IsOptional()
   @IsInt()

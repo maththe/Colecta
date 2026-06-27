@@ -3,6 +3,7 @@ import type {
   BinActivityRow,
   ProductivityRow,
   ThroughputBucket,
+  ZoneBinsRow,
 } from '@/types';
 import { downloadBlob, rangeQuery, request, type DateRange } from '@/lib/api/client';
 
@@ -15,6 +16,10 @@ export const analyticsApi = {
     request<ThroughputBucket[]>(`/analytics/throughput${weeks ? `?weeks=${weeks}` : ''}`),
   bins: (range?: DateRange) =>
     request<BinActivityRow[]>(`/analytics/bins${rangeQuery(range)}`),
+  binsByZone: (siteId?: string) =>
+    request<ZoneBinsRow[]>(
+      `/analytics/bins?groupBy=zone${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ''}`,
+    ),
 };
 
 export const reportsApi = {

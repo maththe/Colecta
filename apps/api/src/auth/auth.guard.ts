@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from './public.decorator';
+import { getJwtSecret } from './jwt-secret';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -43,7 +44,7 @@ export class AuthGuard implements CanActivate {
       // Tenta verificar e decodificar o token.
       // IMPORTANTE: Use a mesma secret que você usou na hora de gerar o token no login!
       const payload = await this.jwtService.verifyAsync(token, {
-        secret: process.env.JWT_SECRET || 'chave_super_secreta_aqui' // Recomendo usar .env
+        secret: getJwtSecret(), // mesma secret do AuthModule; sem fallback (ver jwt-secret.ts)
       });
       
       // Se deu certo, injetamos os dados do usuário (payload) na requisição.

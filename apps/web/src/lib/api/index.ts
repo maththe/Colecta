@@ -5,6 +5,8 @@ import { camerasApi } from '@/modules/security/api/cameras.api';
 import { tasksApi } from '@/modules/tasks/api/tasks.api';
 import { notificationsApi } from '@/modules/notifications/api/notifications.api';
 import { analyticsApi, reportsApi } from '@/modules/analytics/api/analytics.api';
+import { sitesApi } from '@/modules/sites/api/sites.api';
+import { zonesApi } from '@/modules/zones/api/zones.api';
 
 export { ApiError } from './client';
 export type { DateRange } from './client';
@@ -20,4 +22,6 @@ export const api = {
   notifications: notificationsApi,
   analytics: analyticsApi,
   reports: reportsApi,
+  sites: sitesApi,
+  zones: zonesApi,
 };

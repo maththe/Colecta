@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateTrashBinDto } from './dto/create-trash-bin.dto';
 import { UpdateTrashBinDto } from './dto/update-trash-bin.dto';
 import { FillForecast, forecastFill } from './forecast';
+import { findZoneIdForPoint, resolveSiteId } from '../common/geo.util';
 
 const FORECAST_LOOKBACK_DAYS = 7;
 const FORECAST_MAX_SAMPLES = 50;
@@ -100,6 +101,28 @@ export class TrashBinsService {
 
   async create(dto: CreateTrashBinDto, tenantUuid: string): Promise<TrashBinResponse> {
     try {
+      const siteId = await resolveSiteId(this.prisma, {
+        tenantUuid,
+        locationId: dto.locationId ?? null,
+        siteId: dto.siteId ?? null,
+        latitude: dto.latitude ?? null,
+        longitude: dto.longitude ?? null,
+        enforceBoundary: true,
+      });
+      // Zona: override manual do ADMIN, senão recálculo pela coordenada efetiva.
+      const [zoneLat, zoneLng] = await this.effectiveCoord(
+        tenantUuid,
+        dto.locationId ?? null,
+        dto.latitude ?? null,
+        dto.longitude ?? null,
+      );
+      let zoneId: string | null;
+      if (dto.zoneId !== undefined && dto.zoneId !== null) {
+        await this.assertZoneInSite(dto.zoneId, siteId, tenantUuid);
+        zoneId = dto.zoneId;
+      } else {
+        zoneId = await this.resolveBinZoneId(tenantUuid, siteId, zoneLat, zoneLng);
+      }
       const bin = await this.prisma.trashBin.create({
         data: {
           tenantUuid,
@@ -115,6 +138,8 @@ export class TrashBinsService {
           floor: dto.floor ?? null,
           posX: dto.posX ?? null,
           posY: dto.posY ?? null,
+          site: { connect: { id: siteId } },
+          ...(zoneId ? { zone: { connect: { id: zoneId } } } : {}),
           ...(await this.resolvePlacementForCreate(dto, tenantUuid)),
         },
         include: trashBinInclude,
@@ -134,7 +159,7 @@ export class TrashBinsService {
     try {
       const bin = await this.prisma.trashBin.update({
         where: { id },
-        data: await this.buildUpdateData(dto, tenantUuid, existing.location),
+        data: await this.buildUpdateData(dto, tenantUuid, existing),
         include: trashBinInclude,
       });
       const forecasts = await this.computeForecasts([bin]);
@@ -202,8 +227,9 @@ export class TrashBinsService {
   private async buildUpdateData(
     dto: UpdateTrashBinDto,
     tenantUuid: string,
-    currentLocation: TrashBinWithLocation['location'],
+    existing: TrashBinWithLocation,
   ): Promise<Prisma.TrashBinUpdateInput> {
+    const currentLocation = existing.location;
     const data: Prisma.TrashBinUpdateInput = {};
 
     if (dto.name !== undefined) data.name = dto.name;
@@ -219,6 +245,10 @@ export class TrashBinsService {
     if (dto.posX !== undefined) data.posX = dto.posX ?? null;
     if (dto.posY !== undefined) data.posY = dto.posY ?? null;
 
+    // Coordenadas efetivas após a edição (para recomputar o Site quando outdoor).
+    let nextLatitude = existing.latitude;
+    let nextLongitude = existing.longitude;
+
     if (dto.locationId !== undefined) {
       if (dto.locationId) {
         // Vincular a uma construção: a coordenada própria deixa de valer.
@@ -226,6 +256,8 @@ export class TrashBinsService {
         data.location = { connect: { id: dto.locationId } };
         data.latitude = dto.latitude ?? null;
         data.longitude = dto.longitude ?? null;
+        nextLatitude = null;
+        nextLongitude = null;
       } else {
         // Soltar para "ao ar livre": precisa de coordenada própria.
         const latitude = dto.latitude ?? currentLocation?.latitude;
@@ -238,15 +270,121 @@ export class TrashBinsService {
         data.location = { disconnect: true };
         data.latitude = latitude;
         data.longitude = longitude;
+        nextLatitude = latitude;
+        nextLongitude = longitude;
       }
-      return data;
+    } else {
+      // Sem mexer no vínculo: apenas atualizar a coordenada própria, se enviada.
+      if (dto.latitude !== undefined) {
+        data.latitude = dto.latitude;
+        nextLatitude = dto.latitude;
+      }
+      if (dto.longitude !== undefined) {
+        data.longitude = dto.longitude;
+        nextLongitude = dto.longitude;
+      }
     }
 
-    // Sem mexer no vínculo: apenas atualizar a coordenada própria, se enviada.
-    if (dto.latitude !== undefined) data.latitude = dto.latitude;
-    if (dto.longitude !== undefined) data.longitude = dto.longitude;
+    // Recomputa o belonging (siteId) quando algo que o afeta mudou: o vínculo
+    // com a construção, a coordenada própria, ou um siteId explícito.
+    const spatialChanged =
+      dto.locationId !== undefined ||
+      dto.latitude !== undefined ||
+      dto.longitude !== undefined ||
+      dto.siteId !== undefined;
+    const effectiveLocationId =
+      dto.locationId !== undefined ? dto.locationId : existing.locationId;
+    let effectiveSiteId = existing.siteId;
+
+    if (spatialChanged) {
+      effectiveSiteId = await resolveSiteId(this.prisma, {
+        tenantUuid,
+        locationId: effectiveLocationId,
+        siteId: dto.siteId ?? null,
+        latitude: nextLatitude,
+        longitude: nextLongitude,
+        enforceBoundary: true,
+      });
+      data.site = { connect: { id: effectiveSiteId } };
+    }
+
+    // Zona (belonging simétrico ao Site): override manual do ADMIN tem prioridade;
+    // senão, recalcula via Turf quando a posição/recinto muda.
+    if (dto.zoneId !== undefined) {
+      if (dto.zoneId) {
+        await this.assertZoneInSite(dto.zoneId, effectiveSiteId, tenantUuid);
+        data.zone = { connect: { id: dto.zoneId } };
+      } else {
+        data.zone = { disconnect: true };
+      }
+    } else if (spatialChanged) {
+      const [zoneLat, zoneLng] = await this.effectiveCoord(
+        tenantUuid,
+        effectiveLocationId,
+        nextLatitude,
+        nextLongitude,
+      );
+      const zoneId = await this.resolveBinZoneId(
+        tenantUuid,
+        effectiveSiteId,
+        zoneLat,
+        zoneLng,
+      );
+      data.zone = zoneId ? { connect: { id: zoneId } } : { disconnect: true };
+    }
 
     return data;
+  }
+
+  // Coordenada efetiva da lixeira: a própria (outdoor) ou a da construção (indoor).
+  private async effectiveCoord(
+    tenantUuid: string,
+    locationId: string | null,
+    ownLat: number | null,
+    ownLng: number | null,
+  ): Promise<[number | null, number | null]> {
+    if (ownLat != null && ownLng != null) return [ownLat, ownLng];
+    if (locationId) {
+      const loc = await this.prisma.location.findFirst({
+        where: { id: locationId, tenantUuid },
+        select: { latitude: true, longitude: true },
+      });
+      if (loc) return [loc.latitude, loc.longitude];
+    }
+    return [null, null];
+  }
+
+  // Resolve a zona da lixeira por coordenada (Turf), entre as zonas do Site,
+  // com desempate determinístico (zona mais antiga). `null` = fora de zona.
+  private async resolveBinZoneId(
+    tenantUuid: string,
+    siteId: string,
+    lat: number | null,
+    lng: number | null,
+  ): Promise<string | null> {
+    if (lat == null || lng == null) return null;
+    const zones = await this.prisma.zone.findMany({
+      where: { tenantUuid, siteId },
+      select: { id: true, polygon: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return findZoneIdForPoint(lat, lng, zones);
+  }
+
+  private async assertZoneInSite(
+    zoneId: string,
+    siteId: string,
+    tenantUuid: string,
+  ): Promise<void> {
+    const zone = await this.prisma.zone.findFirst({
+      where: { id: zoneId, tenantUuid, siteId },
+      select: { id: true },
+    });
+    if (!zone) {
+      throw new BadRequestException(
+        `Zone ${zoneId} não pertence ao recinto desta lixeira.`,
+      );
+    }
   }
 
   private async assertLocationExists(locationId: string, tenantUuid: string): Promise<void> {

@@ -73,6 +73,12 @@ export class CreateCameraDto {
   @IsUUID()
   locationId?: string | null;
 
+  // Recinto (Site). Opcional: indoor herda da construção; senão resolve pela
+  // coordenada (Turf) caindo no Site default. Ver geo.util.resolveSiteId.
+  @IsOptional()
+  @IsUUID()
+  siteId?: string | null;
+
   @IsOptional()
   @IsUUID()
   trashBinId?: string | null;

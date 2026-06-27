@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '@/lib/api';
+import { useAsyncData } from '@/hooks/useAsyncData';
 import { ErrorState, LoadingState, EmptyState } from '@/components/States';
 import type {
   CreateSecurityOccurrenceInput,
+  CreateSiteInput,
   CreateTaskInput,
   Location,
   SecurityCamera,
+  Site,
   Task,
   TrashBin,
   User,
+  Zone,
 } from '@/types';
 import { TrashBinMap } from '@/modules/trash-bins/components/TrashBinMap';
 import { CameraPreviewDialog, ReportOccurrenceDialog } from '@/modules/security/components';
@@ -20,7 +24,18 @@ import { TaskForm } from '@/modules/tasks/components';
 import { useAuth } from '@/modules/auth/context/AuthContext';
 import { canSeeTrashBins } from '@/types';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, MapPin, Play } from 'lucide-react';
+import { CheckCircle2, Layers, MapPin, Play } from 'lucide-react';
+
+// Conjunto de dados do mapa carregado (e repolido) em uma única busca.
+interface MapData {
+  bins: TrashBin[];
+  locations: Location[];
+  cameras: SecurityCamera[];
+  users: User[];
+  tasks: Task[];
+  site: Site | null;
+  zones: Zone[];
+}
 
 // Filtro de quais marcadores aparecem no mapa.
 type MapMarkerFilter = 'all' | 'cameras' | 'locations' | 'bins' | 'tasks';
@@ -44,12 +59,6 @@ export function MapPage() {
   // Tarefa que o funcionário veio iniciar pelo "Visualizar no mapa". Só esse
   // fluxo passa esse parâmetro, então o botão "Iniciar tarefa" só aparece aqui.
   const startTaskId = searchParams.get('startTask');
-  const [bins, setBins] = useState<TrashBin[] | null>(null);
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [cameras, setCameras] = useState<SecurityCamera[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [selectedBin, setSelectedBin] = useState<TrashBin | null>(null);
   const [selectedCamera, setSelectedCamera] = useState<SecurityCamera | null>(null);
   // Câmera cuja imagem está sendo visualizada no modal (independe de permissão).
@@ -73,67 +82,58 @@ export function MapPage() {
   // Aviso temporário (3s) exibido ao iniciar uma tarefa pelo mapa.
   const [startedToast, setStartedToast] = useState<string | null>(null);
   const canCreateTasks = user?.role === 'ADMIN';
+  // Só o ADMIN edita o contorno/visão do recinto (escrita também exigida no back).
+  const canEditSite = user?.role === 'ADMIN';
   // Câmeras só são visíveis para ADMIN e SEGURANCA (regra também imposta no servidor).
   const canViewCameras = user?.role === 'ADMIN' || user?.role === 'SEGURANCA';
   // SEGURANCA não vê lixeiras: o endpoint responde 403, então nem chamamos.
   const canSeeBins = canSeeTrashBins(user?.role);
 
-  useEffect(() => {
-    let cancelled = false;
+  // Busca única de todos os dados do mapa. Só pede câmeras/lixeiras/usuários quem
+  // pode vê-los (os demais nem chamam o endpoint, que responde 403). Recinto é
+  // mono-site na v1 → primeiro/único Site do tenant.
+  const fetchMapData = useCallback(async (): Promise<MapData> => {
+    const camerasPromise = canViewCameras
+      ? api.cameras.list()
+      : Promise.resolve<SecurityCamera[]>([]);
+    const binsPromise = canSeeBins
+      ? api.trashBins.list()
+      : Promise.resolve<TrashBin[]>([]);
+    const usersPromise = canCreateTasks
+      ? api.users.list()
+      : Promise.resolve<User[]>([]);
+    const sitePromise = api.sites.list().then((list) => list[0] ?? null);
 
-    async function load() {
-      setError(null);
-      try {
-        // Só busca câmeras/lixeiras quem pode vê-las; os demais nem chamam o
-        // endpoint (que agora responde 403 para papéis sem permissão).
-        const camerasPromise = canViewCameras
-          ? api.cameras.list()
-          : Promise.resolve<SecurityCamera[]>([]);
-        const binsPromise = canSeeBins
-          ? api.trashBins.list()
-          : Promise.resolve<TrashBin[]>([]);
-
-        if (canCreateTasks) {
-          const [binData, locationData, cameraData, userData, taskData] = await Promise.all([
-            binsPromise,
-            api.locations.list(),
-            camerasPromise,
-            api.users.list(),
-            api.tasks.mapTasks(),
-          ]);
-          if (cancelled) return;
-          setBins(binData);
-          setLocations(locationData);
-          setCameras(cameraData);
-          setUsers(userData);
-          setTasks(taskData);
-          return;
-        }
-
-        const [binData, locationData, cameraData, taskData] = await Promise.all([
-          binsPromise,
-          api.locations.list(),
-          camerasPromise,
-          api.tasks.mapTasks(),
-        ]);
-        if (cancelled) return;
-        setBins(binData);
-        setLocations(locationData);
-        setCameras(cameraData);
-        setUsers([]);
-        setTasks(taskData);
-      } catch (err: unknown) {
-        if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : 'Falha ao carregar mapa');
-      }
-    }
-
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
+    const [bins, locations, cameras, users, tasks, site, zones] = await Promise.all([
+      binsPromise,
+      api.locations.list(),
+      camerasPromise,
+      usersPromise,
+      api.tasks.mapTasks(),
+      sitePromise,
+      api.zones.list(),
+    ]);
+    return { bins, locations, cameras, users, tasks, site, zones };
   }, [canCreateTasks, canViewCameras, canSeeBins]);
+
+  // Polling (Fase 3): refaz a busca a cada 20s, atualizando os marcadores via
+  // setData — sem remontar o MapContainer e pausando em aba oculta.
+  const { data, setData, error, reload } = useAsyncData<MapData>(
+    fetchMapData,
+    'Falha ao carregar mapa',
+    { refetchIntervalMs: 20000 },
+  );
+
+  const bins = data?.bins ?? null;
+  const site = data?.site ?? null;
+  const locations = data?.locations ?? [];
+  const cameras = data?.cameras ?? [];
+  const users = data?.users ?? [];
+  const tasks = data?.tasks ?? [];
+  const zones = data?.zones ?? [];
+  // Exibição das zonas (polígonos) no mapa — toggle independente do filtro de
+  // marcadores, já que zona é overlay e não uma categoria de marcador.
+  const [showZones, setShowZones] = useState(true);
 
   // Carrega a tarefa do atalho "Iniciar no mapa". Buscamos por id porque ela
   // pode não estar entre os marcadores do mapa (ex.: ocorrência de câmera, que
@@ -177,6 +177,10 @@ export function MapPage() {
         return [target.latitude, target.longitude];
       }
     }
+    // Sem foco por deep-link: usa a visão definida no Site, se houver.
+    if (site && site.centerLat != null && site.centerLng != null) {
+      return [site.centerLat, site.centerLng];
+    }
     const points = [
       ...(bins ?? []).map((b) => ({ lat: b.latitude, lng: b.longitude })),
       ...locations.map((l) => ({ lat: l.latitude, lng: l.longitude })),
@@ -187,7 +191,18 @@ export function MapPage() {
       { lat: 0, lng: 0 },
     );
     return [sum.lat / points.length, sum.lng / points.length];
-  }, [bins, locations, cameras, tasks, focusBinId, focusLocationId, focusCameraId, focusTaskId]);
+  }, [bins, locations, cameras, tasks, site, focusBinId, focusLocationId, focusCameraId, focusTaskId]);
+
+  // Persiste contorno/visão do recinto (PATCH) e atualiza o Site no estado, o
+  // que reflete na máscara/limites do mapa sem remontar o MapContainer.
+  const handleSaveSite = useCallback(
+    async (patch: Partial<CreateSiteInput>) => {
+      if (!site) return;
+      const updated = await api.sites.update(site.id, patch);
+      setData((prev) => (prev ? { ...prev, site: updated } : prev));
+    },
+    [site, setData],
+  );
 
   const hasMapData =
     (bins?.length ?? 0) > 0 || locations.length > 0 || cameras.length > 0;
@@ -229,7 +244,7 @@ export function MapPage() {
   async function reloadTasks() {
     try {
       const taskData = await api.tasks.mapTasks();
-      setTasks(taskData);
+      setData((prev) => (prev ? { ...prev, tasks: taskData } : prev));
     } catch {
       // Falha silenciosa: os demais marcadores seguem válidos no mapa.
     }
@@ -384,6 +399,13 @@ export function MapPage() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <FilterChips options={markerFilters} value={markerFilter} onChange={setMarkerFilter} />
+          <Button
+            variant={showZones ? 'default' : 'outline'}
+            onClick={() => setShowZones((prev) => !prev)}
+          >
+            <Layers className="h-4 w-4" />
+            Zonas
+          </Button>
           {canCreateTasks && (
             <>
               <Button
@@ -439,7 +461,7 @@ export function MapPage() {
           }
         />
       )}
-      {bins && hasMapData && (
+      {bins && site && hasMapData && (
         <div className="relative min-h-[480px] overflow-hidden rounded-xl border border-border" style={{ height: 'calc(100vh - 200px)' }}>
           {startedToast && (
             <div
@@ -455,6 +477,13 @@ export function MapPage() {
           )}
           <TrashBinMap
             bins={visibleBins}
+            site={site}
+            zoom={site.defaultZoom ?? undefined}
+            canEditSite={canEditSite}
+            onSaveSite={handleSaveSite}
+            zones={zones}
+            showZones={showZones}
+            onZonesChanged={canEditSite ? () => void reload() : undefined}
             locations={visibleLocations}
             cameras={visibleCameras}
             tasks={visibleTasks}

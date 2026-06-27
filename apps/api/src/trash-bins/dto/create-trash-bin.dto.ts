@@ -34,6 +34,19 @@ export class CreateTrashBinDto {
   @IsUUID()
   locationId?: string | null;
 
+  // Recinto (Site). Opcional: indoor herda da construção; outdoor resolve pela
+  // coordenada (Turf) caindo no Site default. Ver geo.util.resolveSiteId.
+  @IsOptional()
+  @IsUUID()
+  siteId?: string | null;
+
+  // Zona (override manual do ADMIN). Opcional: normalmente o zoneId é recalculado
+  // pela coordenada (Turf). Um valor explícito sobrescreve até o próximo recálculo
+  // disparado por edição de zona.
+  @IsOptional()
+  @IsUUID()
+  zoneId?: string | null;
+
   @IsOptional()
   @IsLatitude()
   latitude?: number;

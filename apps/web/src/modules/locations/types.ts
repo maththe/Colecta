@@ -6,6 +6,8 @@ import type { UserRole } from '@/modules/auth/types';
 export interface Location {
   id: string;
   name: string;
+  /** Recinto ao qual a construção pertence (FK obrigatória no back). */
+  siteId: string;
   description: string | null;
   latitude: number;
   longitude: number;

@@ -13,6 +13,15 @@ export interface UseAsyncDataResult<T> {
   reload: () => Promise<void>;
 }
 
+export interface UseAsyncDataOptions {
+  /**
+   * Quando definido, refaz a busca nesse intervalo (ms) — o mecanismo único de
+   * polling do app (sem `setInterval` solto por tela). Pausa automaticamente
+   * quando a aba está oculta e refaz a busca ao voltar a ficar visível.
+   */
+  refetchIntervalMs?: number;
+}
+
 /**
  * Encapsula o ciclo de carregamento de dados padrão das páginas: busca no
  * mount, mensagem de erro amigável, indicador de refresh e recarga manual.
@@ -23,7 +32,9 @@ export interface UseAsyncDataResult<T> {
 export function useAsyncData<T>(
   fetcher: () => Promise<T>,
   fallbackError = 'Falha ao carregar dados',
+  options?: UseAsyncDataOptions,
 ): UseAsyncDataResult<T> {
+  const refetchIntervalMs = options?.refetchIntervalMs;
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -43,6 +54,44 @@ export function useAsyncData<T>(
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // Polling opcional: só roda com a aba visível (não consome rede/servidor em
+  // segundo plano) e refaz a busca ao voltar à aba. Limpa tudo no unmount.
+  useEffect(() => {
+    if (!refetchIntervalMs) return;
+
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (timer === null) {
+        timer = setInterval(() => {
+          void reload();
+        }, refetchIntervalMs);
+      }
+    };
+    const stop = () => {
+      if (timer !== null) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void reload();
+        start();
+      } else {
+        stop();
+      }
+    };
+
+    if (document.visibilityState === 'visible') start();
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [refetchIntervalMs, reload]);
 
   return {
     data,

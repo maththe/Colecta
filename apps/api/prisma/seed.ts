@@ -9,6 +9,23 @@ function daysAgo(n: number): Date {
   return new Date(Date.now() - n * DAY_MS);
 }
 
+// Retângulo GeoJSON (Polygon) a partir de oeste/sul/leste/norte. Anel fechado em
+// [lng, lat]. Usado para semear o contorno do recinto e as zonas de demonstração.
+function rectPolygon(w: number, s: number, e: number, n: number) {
+  return {
+    type: 'Polygon' as const,
+    coordinates: [
+      [
+        [w, s],
+        [e, s],
+        [e, n],
+        [w, n],
+        [w, s],
+      ],
+    ],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Definições compartilhadas entre tenants (textos genéricos de tarefas).
 // ---------------------------------------------------------------------------
@@ -129,13 +146,84 @@ async function seedTenant(cfg: TenantSeed): Promise<void> {
     }),
   );
 
+  // Recinto (Site) do tenant: container espacial de topo. O seed usa um único
+  // Site por tenant; tudo (construções, lixeiras, câmeras, tarefas) herda ele,
+  // preservando a invariante indoor (recursos seguem location.siteId).
+  const center = cfg.locations[0];
+  const site = await prisma.site.create({
+    data: {
+      tenantUuid: TENANT,
+      name: cfg.companyName,
+      centerLat: center?.lat ?? null,
+      centerLng: center?.lon ?? null,
+      defaultZoom: 15,
+    },
+  });
+  const withSite = <T>(rows: T[]): (T & { siteId: string })[] =>
+    rows.map((row) => ({ ...row, siteId: site.id }));
+
   const locations = await Promise.all(
     cfg.locations.map((l) =>
       prisma.location.create({
-        data: { tenantUuid: TENANT, name: l.name, description: l.desc, latitude: l.lat, longitude: l.lon },
+        data: {
+          tenantUuid: TENANT,
+          name: l.name,
+          description: l.desc,
+          latitude: l.lat,
+          longitude: l.lon,
+          siteId: site.id,
+        },
       }),
     ),
   );
+
+  // --- Demonstração das Fases 1 e 2 -------------------------------------------
+  // Contorno do recinto: bbox de todas as posições + folga (~18%). O front usa
+  // isso para a máscara e os limites de pan. Duas zonas (Oeste/Leste) dividem o
+  // recinto pelo meridiano central, de modo que toda lixeira cai em uma zona.
+  const lats = cfg.locations.map((l) => l.lat);
+  const lons = cfg.locations.map((l) => l.lon);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons);
+  const maxLon = Math.max(...lons);
+  const padLat = Math.max((maxLat - minLat) * 0.18, 0.0012);
+  const padLon = Math.max((maxLon - minLon) * 0.18, 0.0012);
+  const west = minLon - padLon;
+  const east = maxLon + padLon;
+  const south = minLat - padLat;
+  const north = maxLat + padLat;
+  const midLon = (west + east) / 2;
+
+  await prisma.site.update({
+    where: { id: site.id },
+    data: { boundary: rectPolygon(west, south, east, north) },
+  });
+
+  const zoneOeste = await prisma.zone.create({
+    data: {
+      tenantUuid: TENANT,
+      siteId: site.id,
+      name: 'Zona Oeste',
+      category: 'Operação',
+      color: '#2563eb',
+      polygon: rectPolygon(west, south, midLon, north),
+    },
+  });
+  const zoneLeste = await prisma.zone.create({
+    data: {
+      tenantUuid: TENANT,
+      siteId: site.id,
+      name: 'Zona Leste',
+      category: 'Operação',
+      color: '#16a34a',
+      polygon: rectPolygon(midLon, south, east, north),
+    },
+  });
+  // Lixeira indoor herda a coordenada da construção: a zona é decidida pela
+  // longitude da posição (espelha o que o recompute do back faria via Turf).
+  const zoneIdForLoc = (locIdx: number): string =>
+    cfg.locations[locIdx].lon < midLon ? zoneOeste.id : zoneLeste.id;
 
   const now = new Date();
 
@@ -148,6 +236,8 @@ async function seedTenant(cfg: TenantSeed): Promise<void> {
           name: b.name,
           code: b.code,
           locationId: locations[b.locIdx].id,
+          siteId: site.id,
+          zoneId: zoneIdForLoc(b.locIdx),
           capacityLiters: b.cap,
           status: b.status,
           fillLevel: b.fill,
@@ -186,6 +276,7 @@ async function seedTenant(cfg: TenantSeed): Promise<void> {
         lastSeenAt: new Date(now.getTime() - c.lastSeenHoursAgo * HOUR_MS),
         locationId: c.locIdx !== null ? locations[c.locIdx].id : bin?.locationId ?? null,
         trashBinId: bin?.id ?? null,
+        siteId: site.id,
       };
     }),
   });
@@ -303,12 +394,12 @@ async function seedTenant(cfg: TenantSeed): Promise<void> {
     }
   }
 
-  await prisma.task.createMany({ data: historyRows });
+  await prisma.task.createMany({ data: withSite(historyRows) });
   console.log(`  Created ${historyRows.length} historical tasks`);
 
   // Tarefas abertas atuais.
   await prisma.task.createMany({
-    data: [
+    data: withSite([
       {
         tenantUuid: TENANT,
         title: `Esvaziar ${cfg.bins[2].code} (lixeira cheia)`,
@@ -382,7 +473,7 @@ async function seedTenant(cfg: TenantSeed): Promise<void> {
         assigneeRole: UserRole.MANUTENCAO,
         dueDate: new Date(now.getTime() + 2 * DAY_MS),
       },
-    ],
+    ]),
   });
 
   // Tarefas posicionadas livremente no mapa (lat/lng próprias, sem vínculo a
@@ -393,7 +484,7 @@ async function seedTenant(cfg: TenantSeed): Promise<void> {
   const maintainer = employees.find((e) => e.role === UserRole.MANUTENCAO);
   const guard = employees.find((e) => e.role === UserRole.SEGURANCA);
   await prisma.task.createMany({
-    data: [
+    data: withSite([
       {
         tenantUuid: TENANT,
         title: 'Recolher entulho relatado por visitante',
@@ -432,7 +523,7 @@ async function seedTenant(cfg: TenantSeed): Promise<void> {
         assigneeName: guard?.name ?? null,
         dueDate: new Date(now.getTime() + 3 * HOUR_MS),
       },
-    ],
+    ]),
   });
 
   console.log(
@@ -828,6 +919,129 @@ const centralParkZoo: TenantSeed = {
   ],
 };
 
+// ---------------------------------------------------------------------------
+// Tenant 4: PUCPR (campus universitário). Coordenadas aprox. do campus
+// Curitiba (Prado Velho, PR).
+// ---------------------------------------------------------------------------
+const pucpr: TenantSeed = {
+  tenantUuid: '00000000-0000-0000-0000-000000000004',
+  companyName: 'PUCPR Curitiba',
+  admin: { email: 'admin@pucpr.br', name: 'Admin PUCPR' },
+  employees: [
+    { email: 'lucas@pucpr.br', name: 'Lucas Almeida', role: UserRole.LIMPEZA, onTimeRate: 0.89 },
+    { email: 'fernanda@pucpr.br', name: 'Fernanda Ribeiro', role: UserRole.MANUTENCAO, onTimeRate: 0.92 },
+    { email: 'rafael@pucpr.br', name: 'Rafael Moraes', role: UserRole.SEGURANCA, onTimeRate: 0.73 },
+    { email: 'juliana@pucpr.br', name: 'Juliana Cardoso', role: UserRole.LIMPEZA, onTimeRate: 0.86 },
+    { email: 'bruno@pucpr.br', name: 'Bruno Schneider', role: UserRole.MANUTENCAO, onTimeRate: 0.8 },
+    { email: 'camila@pucpr.br', name: 'Camila Andrade', role: UserRole.FINANCEIRO, onTimeRate: 0.95 },
+  ],
+  locations: [
+    { name: 'Portaria Principal', desc: 'Entrada principal pela Rua Imaculada Conceição', lat: -25.4419, lon: -49.2478 },
+    { name: 'Bloco Amarelo', desc: 'Próximo ao bloco amarelo de salas de aula', lat: -25.4426, lon: -49.2470 },
+    { name: 'Biblioteca Central', desc: 'Em frente à Biblioteca Central', lat: -25.4431, lon: -49.2483 },
+    { name: 'Praça da Reitoria', desc: 'Praça central junto à reitoria', lat: -25.4423, lon: -49.2490 },
+    { name: 'Restaurante Universitário', desc: 'Ao lado do RU e da praça de alimentação', lat: -25.4437, lon: -49.2476 },
+    { name: 'Ginásio Poliesportivo', desc: 'Junto ao ginásio e às quadras', lat: -25.4444, lon: -49.2465 },
+    { name: 'Estacionamento Sul', desc: 'Estacionamento de alunos ao sul do campus', lat: -25.4450, lon: -49.2488 },
+  ],
+  cameras: [
+    {
+      code: 'PUC-CAM-001',
+      name: 'Portaria Principal - Catracas',
+      status: CameraStatus.online,
+      model: 'Hikvision DS-2CD2143G2',
+      ipAddress: '10.40.12.21',
+      resolution: '1920x1080',
+      fps: 30,
+      lat: -25.4418,
+      lon: -49.2479,
+      locIdx: 0,
+      binCode: null,
+      lastSeenHoursAgo: 0,
+      imageUrl: '/security/cameras/portaria-norte-entrada.jpg',
+      notes: 'Cobertura da entrada principal e catracas.',
+    },
+    {
+      code: 'PUC-CAM-002',
+      name: 'Bloco Amarelo - Lixeira PUC-002',
+      status: CameraStatus.online,
+      model: 'Intelbras VIP 1230',
+      ipAddress: '10.40.12.22',
+      resolution: '1280x720',
+      fps: 24,
+      lat: -25.4427,
+      lon: -49.2471,
+      locIdx: null,
+      binCode: 'PUC-002',
+      lastSeenHoursAgo: 0,
+      imageUrl: '/security/cameras/portaria-norte-lixeira.jpg',
+      notes: 'Foco no ponto de descarte junto ao bloco amarelo.',
+    },
+    {
+      code: 'PUC-CAM-003',
+      name: 'Biblioteca Central - Visão geral',
+      status: CameraStatus.maintenance,
+      model: 'Dahua IPC-HFW2431S',
+      ipAddress: '10.40.18.14',
+      resolution: '1920x1080',
+      fps: 25,
+      lat: -25.4432,
+      lon: -49.2482,
+      locIdx: 2,
+      binCode: null,
+      lastSeenHoursAgo: 4,
+      imageUrl: '/security/cameras/playground-central.jpg',
+      notes: 'Aguardando ajuste de foco.',
+    },
+    {
+      code: 'PUC-CAM-004',
+      name: 'Restaurante Universitário - Lixeira PUC-008',
+      status: CameraStatus.online,
+      model: 'Axis M2035-LE',
+      ipAddress: '10.40.22.9',
+      resolution: '1920x1080',
+      fps: 30,
+      lat: -25.4438,
+      lon: -49.2475,
+      locIdx: null,
+      binCode: 'PUC-008',
+      lastSeenHoursAgo: 0,
+      imageUrl: '/security/cameras/lago-ipes-deque.jpg',
+      notes: 'Cobre a área do RU e da praça de alimentação.',
+    },
+    {
+      code: 'PUC-CAM-005',
+      name: 'Estacionamento Sul - Ponto 3',
+      status: CameraStatus.offline,
+      model: 'Intelbras VIP 3230',
+      ipAddress: '10.40.24.33',
+      resolution: '1280x720',
+      fps: 20,
+      lat: -25.4451,
+      lon: -49.2487,
+      locIdx: 6,
+      binCode: null,
+      lastSeenHoursAgo: 36,
+      imageUrl: '/security/cameras/trilha-oeste-ponto-3.jpg',
+      notes: 'Sem comunicação desde a noite anterior.',
+    },
+  ],
+  bins: [
+    { name: 'Lixeira Portaria A',          code: 'PUC-001', locIdx: 0, cap: 120, status: TrashBinStatus.active, fill: 41, battery: 88 },
+    { name: 'Lixeira Bloco Amarelo',       code: 'PUC-002', locIdx: 1, cap: 100, status: TrashBinStatus.active, fill: 59, battery: 76 },
+    { name: 'Lixeira Biblioteca',          code: 'PUC-003', locIdx: 2, cap: 80,  status: TrashBinStatus.full,  fill: 97, battery: 51 },
+    { name: 'Lixeira Biblioteca Selet.',   code: 'PUC-004', locIdx: 2, cap: 60,  status: TrashBinStatus.active, fill: 47, battery: 82 },
+    { name: 'Lixeira Reitoria',            code: 'PUC-005', locIdx: 3, cap: 100, status: TrashBinStatus.active, fill: 32, battery: 13 },
+    { name: 'Lixeira Reitoria B',          code: 'PUC-006', locIdx: 3, cap: 150, status: TrashBinStatus.maintenance, fill: 23, battery: 67 },
+    { name: 'Lixeira RU A',                code: 'PUC-007', locIdx: 4, cap: 100, status: TrashBinStatus.active, fill: 60, battery: 65 },
+    { name: 'Lixeira RU B',                code: 'PUC-008', locIdx: 4, cap: 100, status: TrashBinStatus.offline, fill: null, battery: null },
+    { name: 'Lixeira RU Selet.',           code: 'PUC-009', locIdx: 4, cap: 80,  status: TrashBinStatus.active, fill: 67, battery: 48 },
+    { name: 'Lixeira Ginásio',             code: 'PUC-010', locIdx: 5, cap: 120, status: TrashBinStatus.active, fill: 30, battery: 87 },
+    { name: 'Lixeira Ginásio B',           code: 'PUC-011', locIdx: 5, cap: 150, status: TrashBinStatus.active, fill: 82, battery: 59 },
+    { name: 'Lixeira Estacionamento Sul',  code: 'PUC-012', locIdx: 6, cap: 100, status: TrashBinStatus.inactive, fill: null, battery: 32 },
+  ],
+};
+
 async function main(): Promise<void> {
   console.log('Seeding database...');
 
@@ -836,11 +1050,14 @@ async function main(): Promise<void> {
   await prisma.camera.deleteMany();
   await prisma.sensorReading.deleteMany();
   await prisma.trashBin.deleteMany();
+  await prisma.zone.deleteMany();
   await prisma.location.deleteMany();
+  await prisma.site.deleteMany();
 
   await seedTenant(colecta);
   await seedTenant(disney);
   await seedTenant(centralParkZoo);
+  await seedTenant(pucpr);
 
   console.log('\nSeed concluído.');
   console.log('Admin Colecta: admin@colecta.com / admin123');
@@ -849,6 +1066,8 @@ async function main(): Promise<void> {
   console.log('Usuários Disney: mickey@, minnie@, donald@, goofy@, pluto@, daisy@disney.com — senha: funcionario123');
   console.log('Admin Central Park Zoo: admin@centralpark.com / admin123');
   console.log('Usuários Central Park Zoo: james@, olivia@, william@, emma@, noah@, sophia@centralpark.com — senha: funcionario123');
+  console.log('Admin PUCPR Curitiba: admin@pucpr.br / admin123');
+  console.log('Usuários PUCPR Curitiba: lucas@, fernanda@, rafael@, juliana@, bruno@, camila@pucpr.br — senha: funcionario123');
 }
 
 main()

@@ -3,6 +3,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
+import { SitesModule } from './sites/sites.module';
+import { ZonesModule } from './zones/zones.module';
 import { TrashBinsModule } from './trash-bins/trash-bins.module';
 import { LocationsModule } from './locations/locations.module';
 import { CamerasModule } from './cameras/cameras.module';
@@ -27,6 +29,8 @@ import { MqttIngestModule } from './mqtt-ingest/mqtt-ingest.module';
     PrismaModule,
     AuthModule,
     UsersModule,
+    SitesModule,
+    ZonesModule,
     LocationsModule,
     CamerasModule,
     TrashBinsModule,

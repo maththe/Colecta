@@ -4,9 +4,11 @@ import mqtt, { IClientOptions, MqttClient } from 'mqtt';
 import { SensorReadingsService } from '../sensor-readings/sensor-readings.service';
 
 const DEFAULT_BROKER_URL = 'mqtt://broker.emqx.io:1883';
+// Tópico-base (raiz). A assinatura real é `${base}/#`, que casa o próprio
+// tópico-base E todos os `${base}/{deviceId}` — UMA única assinatura cobre
+// ambos, sem sobreposição (assinar base e base/# juntos duplicaria a ingestão).
 const DEFAULT_TOPIC = 'binovate/medidas';
 const DEFAULT_TENANT_UUID = '00000000-0000-0000-0000-000000000001';
-const DEFAULT_TRASH_BIN_CODE = 'PRQ-001';
 
 @Injectable()
 export class MqttIngestService implements OnModuleInit, OnModuleDestroy {
@@ -25,7 +27,9 @@ export class MqttIngestService implements OnModuleInit, OnModuleDestroy {
     }
 
     const brokerUrl = this.config.get<string>('MQTT_BROKER_URL') ?? DEFAULT_BROKER_URL;
-    const topic = this.config.get<string>('MQTT_TOPIC') ?? DEFAULT_TOPIC;
+    const baseTopic = this.config.get<string>('MQTT_TOPIC') ?? DEFAULT_TOPIC;
+    // `#` casa o nível-pai e todos os filhos: cobre `base` e `base/{deviceId}`.
+    const subscriptionTopic = `${baseTopic}/#`;
     const username = this.config.get<string>('MQTT_USERNAME');
     const password = this.config.get<string>('MQTT_PASSWORD');
     const clientId =
@@ -44,12 +48,14 @@ export class MqttIngestService implements OnModuleInit, OnModuleDestroy {
 
     this.client.on('connect', () => {
       this.logger.log(`Connected to MQTT broker ${brokerUrl}`);
-      this.client?.subscribe(topic, (err) => {
+      this.client?.subscribe(subscriptionTopic, (err) => {
         if (err) {
-          this.logger.error(`Failed to subscribe to MQTT topic ${topic}: ${err.message}`);
+          this.logger.error(
+            `Failed to subscribe to MQTT topic ${subscriptionTopic}: ${err.message}`,
+          );
           return;
         }
-        this.logger.log(`Subscribed to MQTT topic ${topic}`);
+        this.logger.log(`Subscribed to MQTT topic ${subscriptionTopic}`);
       });
     });
 
@@ -70,9 +76,7 @@ export class MqttIngestService implements OnModuleInit, OnModuleDestroy {
     const text = payload.toString('utf8');
     const tenantUuid =
       this.config.get<string>('MQTT_TENANT_UUID') ?? DEFAULT_TENANT_UUID;
-    const trashBinCode =
-      this.config.get<string>('MQTT_TRASH_BIN_CODE') ?? DEFAULT_TRASH_BIN_CODE;
-    const trashBinId = this.config.get<string>('MQTT_TRASH_BIN_ID');
+    const baseTopic = this.config.get<string>('MQTT_TOPIC') ?? DEFAULT_TOPIC;
 
     let message: unknown;
     try {
@@ -87,12 +91,25 @@ export class MqttIngestService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    // Ramificação por tópico (uma única assinatura `${base}/#`):
+    //  - `${base}/{deviceId}` (com sufixo) → roteamento POR DEVICE: a lixeira é
+    //    resolvida pelo tópico completo (TrashBin.mqttTopic). Sem env por device.
+    //  - `${base}` exato (tópico-pai) → caminho LEGADO, opcional: usa
+    //    MQTT_TRASH_BIN_CODE/ID se definidos (compat com o setup de bin único).
+    const options =
+      topic === baseTopic
+        ? {
+            trashBinCode: this.config.get<string>('MQTT_TRASH_BIN_CODE'),
+            trashBinId: this.config.get<string>('MQTT_TRASH_BIN_ID'),
+          }
+        : {};
+
     try {
       const reading = await this.sensorReadings.createFromMqttMessage(
         topic,
         message as Record<string, unknown>,
         tenantUuid,
-        { trashBinCode, trashBinId },
+        options,
       );
       this.logger.log(`Stored MQTT reading ${reading.id} from ${topic}`);
     } catch (err) {

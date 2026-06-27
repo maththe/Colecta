@@ -17,6 +17,8 @@ export interface SecurityCamera {
   id: string;
   code: string;
   name: string;
+  /** Recinto ao qual a câmera pertence (FK obrigatória no back). */
+  siteId: string;
   locationId: string;
   locationName: string;
   target: CameraTarget;

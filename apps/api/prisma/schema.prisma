@@ -58,6 +58,64 @@ enum NotificationKind {
   task_auto
 }
 
+// Modo de base do mapa do recinto. A arquitetura é estável; a fonte por trás de
+// cada modo é configurada no front (Protomaps self-host p/ osm_muted, MapTiler p/
+// satellite, ImageOverlay p/ overlay).
+enum SiteBaseMode {
+  osm_muted
+  satellite
+  overlay
+}
+
+// Recinto: container espacial de topo (parque, zoológico, parque de diversões,
+// campo). Toda Location/lixeira/câmera/tarefa pertence a um Site. O `boundary`
+// (GeoJSON, sem PostGIS) recorta o mapa e define os limites de navegação.
+model Site {
+  id          String       @id @default(uuid()) @db.Uuid
+  tenantUuid  String
+  name        String
+  boundary    Json? // GeoJSON Polygon/MultiPolygon do contorno; null = sem recorte
+  baseMode    SiteBaseMode @default(osm_muted)
+  centerLat   Float?
+  centerLng   Float?
+  defaultZoom Int?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  locations Location[]
+  trashBins TrashBin[]
+  cameras   Camera[]
+  tasks     Task[]
+  zones     Zone[]
+
+  @@index([tenantUuid])
+  @@map("sites")
+}
+
+// Zona temática dentro de um recinto (Site): subdivide a área em regiões com
+// cor/categoria para exibição, métricas e roteamento. O belonging é simétrico ao
+// do Site — `TrashBin.zoneId` é a fonte da verdade (persistido), recalculado via
+// Turf quando a lixeira move ou a zona muda. Apagar a zona é Cascade a partir do
+// Site, mas SetNull nas lixeiras (a lixeira sobrevive, só perde a zona).
+model Zone {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantUuid String
+  siteId     String   @db.Uuid
+  site       Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name       String
+  category   String?
+  color      String?
+  polygon    Json // GeoJSON Polygon da zona
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  trashBins TrashBin[]
+
+  @@index([tenantUuid])
+  @@index([siteId])
+  @@map("zones")
+}
+
 model User {
   id         String   @id @default(uuid())
   name       String
@@ -82,6 +140,14 @@ model TrashBin {
   code           String
   locationId     String?        @db.Uuid
   location       Location?      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  // Recinto ao qual a lixeira pertence (obrigatório). Indoor (com locationId)
+  // herda location.siteId; outdoor resolve pela coordenada (ver geo.util).
+  siteId         String         @db.Uuid
+  site           Site           @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  // Zona temática (opcional): persistida e recalculada via Turf quando a lixeira
+  // move ou a zona muda. NULL = fora de qualquer zona. SetNull ao apagar a zona.
+  zoneId         String?        @db.Uuid
+  zone           Zone?          @relation(fields: [zoneId], references: [id], onDelete: SetNull)
   // Coordenadas próprias quando a lixeira está "ao ar livre" (sem construção).
   // Preenchidas juntas ou ambas nulas; nesse caso `locationId` é nulo.
   latitude       Float?
@@ -106,9 +172,14 @@ model TrashBin {
   cameras        Camera[]
 
   @@unique([tenantUuid, code])
+  // Roteamento MQTT por device: cada tópico é único dentro do tenant. No Postgres,
+  // UNIQUE trata NULLs como distintos, então lixeiras sem device (mqttTopic NULL)
+  // não colidem entre si.
+  @@unique([tenantUuid, mqttTopic])
   @@index([tenantUuid])
-  @@index([tenantUuid, mqttTopic])
   @@index([locationId])
+  @@index([siteId])
+  @@index([zoneId])
   @@index([status])
   @@map("trash_bins")
 }
@@ -120,6 +191,9 @@ model Location {
   description String?
   latitude    Float
   longitude   Float
+  // Recinto ao qual a construção pertence (obrigatório).
+  siteId      String   @db.Uuid
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Restrict)
   // Toda localização é uma construção (prédio): as lixeiras se distribuem por
   // andares e ganham posição interna na planta de cada andar.
   floorsCount Int?
@@ -134,6 +208,7 @@ model Location {
 
   @@index([tenantUuid])
   @@index([tenantUuid, name])
+  @@index([siteId])
   @@map("locations")
 }
 
@@ -149,6 +224,9 @@ model Camera {
   fps         Int
   latitude    Float
   longitude   Float
+  // Recinto ao qual a câmera pertence (obrigatório). Indoor herda location.siteId.
+  siteId      String       @db.Uuid
+  site        Site         @relation(fields: [siteId], references: [id], onDelete: Restrict)
   // Posicionamento dentro de uma construção (prédio com andares), espelhando TrashBin.
   floor       String?  // andar onde a câmera está, ex: "Térreo", "2", "-1"
   posX        Float?   // posição horizontal na planta do andar (0-100, %)
@@ -168,6 +246,7 @@ model Camera {
   @@index([tenantUuid])
   @@index([locationId])
   @@index([trashBinId])
+  @@index([siteId])
   @@index([status])
   @@map("cameras")
 }
@@ -211,6 +290,10 @@ model Task {
   location     Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
   cameraId     String?      @db.Uuid
   camera       Camera?      @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+  // Recinto da tarefa (obrigatório). Resolvido na criação pela cadeia
+  // trashBin/location/camera → coord (Turf) → Site default do tenant.
+  siteId       String       @db.Uuid
+  site         Site         @relation(fields: [siteId], references: [id], onDelete: Restrict)
   // Coordenadas próprias para tarefas posicionadas livremente no mapa (sem
   // vínculo a lixeira/posição/câmera). Preenchidas juntas ou ambas nulas.
   latitude     Float?
@@ -238,6 +321,7 @@ model Task {
   @@index([locationId])
   @@index([assigneeRole])
   @@index([cameraId])
+  @@index([siteId])
   @@index([tenantUuid, trashBinId, kind, status])
   @@index([tenantUuid, completedAt])
   @@map("tasks")
