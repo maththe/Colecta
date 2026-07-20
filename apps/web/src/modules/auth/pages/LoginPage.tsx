@@ -19,6 +19,7 @@ export function LoginPage() {
   const location = useLocation();
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [guestLoading, setGuestLoading] = useState(false);
 
   const {
     register,
@@ -55,6 +56,21 @@ export function LoginPage() {
       setSubmitting(false);
     }
   });
+
+  const enterAsGuest = async () => {
+    setServerError(null);
+    setGuestLoading(true);
+    try {
+      await login('admin@colecta.com', 'admin123');
+      const redirectTo = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/dashboard';
+      navigate(redirectTo, { replace: true });
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Demo indisponível no momento. Tente novamente.';
+      setServerError(message);
+    } finally {
+      setGuestLoading(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
@@ -128,6 +144,26 @@ export function LoginPage() {
               {submitting ? 'Entrando...' : 'Entrar'}
             </Button>
           </form>
+
+          <div className="my-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">ou</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="w-full"
+            disabled={guestLoading || submitting}
+            onClick={enterAsGuest}
+          >
+            {guestLoading ? 'Entrando...' : 'Entrar como visitante (demo)'}
+          </Button>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            Acesso completo com dados de exemplo, sem cadastro.
+          </p>
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
