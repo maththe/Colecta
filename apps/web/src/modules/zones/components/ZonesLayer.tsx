@@ -23,7 +23,10 @@ export function ZonesLayer({ zones, interactive = true }: Props) {
         const color = zoneColor(zone.color, index);
         return (
           <Polygon
-            key={zone.id}
+            // `interactive` é opção de criação no Leaflet (setStyle não liga/
+            // desliga o handler), então a key inclui a flag para remontar o
+            // polígono quando o modo de seleção entra/sai.
+            key={`${zone.id}:${interactive}`}
             positions={positions}
             interactive={interactive}
             pathOptions={{ color, weight: 2, fillColor: color, fillOpacity: 0.2, interactive }}
@@ -33,6 +36,16 @@ export function ZonesLayer({ zones, interactive = true }: Props) {
                 <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{zone.name}</p>
                 {zone.category && (
                   <p style={{ fontSize: 12, margin: '2px 0' }}>{zone.category}</p>
+                )}
+                {/* Só a listagem traz a contagem — no get por id ela não vem. */}
+                {zone.openTaskCount != null && (
+                  <p style={{ fontSize: 12, margin: '2px 0' }}>
+                    {zone.openTaskCount === 0
+                      ? 'Nenhuma tarefa aberta'
+                      : `${zone.openTaskCount} ${
+                          zone.openTaskCount === 1 ? 'tarefa aberta' : 'tarefas abertas'
+                        }`}
+                  </p>
                 )}
               </Popup>
             )}

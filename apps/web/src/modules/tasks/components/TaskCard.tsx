@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
+  Layers,
   MapPin,
   Pencil,
   Play,
@@ -73,6 +74,15 @@ export function TaskCard({
             <span className="truncate">{task.location.name}</span>
           </span>
         ) : null}
+        {task.zone && (
+          <span className="flex items-center gap-1.5">
+            <Layers
+              className="h-3.5 w-3.5 shrink-0"
+              style={task.zone.color ? { color: task.zone.color } : undefined}
+            />
+            <span className="truncate">{task.zone.name}</span>
+          </span>
+        )}
         {task.assigneeRole ? (
           <span className="flex items-center gap-1.5">
             <Users className="h-3.5 w-3.5 shrink-0" />

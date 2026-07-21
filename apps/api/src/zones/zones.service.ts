@@ -3,21 +3,48 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Zone } from '@prisma/client';
+import { Prisma, TaskStatus, UserRole, Zone } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { findZoneIdForPoint } from '../common/geo.util';
 import { CreateZoneDto } from './dto/create-zone.dto';
 import { UpdateZoneDto } from './dto/update-zone.dto';
 
+/** Zona com o total de tarefas abertas nela, exibido no popup do mapa. */
+export type ZoneWithOpenTasks = Zone & { openTaskCount: number };
+
 @Injectable()
 export class ZonesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll(tenantUuid: string, siteId?: string): Promise<Zone[]> {
-    return this.prisma.zone.findMany({
+  /**
+   * Zonas do tenant com a contagem de tarefas abertas em cada uma. A contagem
+   * respeita a mesma visibilidade das tarefas: o admin vê todas, o funcionário só
+   * as da própria equipe — senão o popup vazaria o volume de outras equipes.
+   */
+  async findAll(
+    tenantUuid: string,
+    siteId?: string,
+    actorRole?: UserRole,
+  ): Promise<ZoneWithOpenTasks[]> {
+    const zones = await this.prisma.zone.findMany({
       where: { tenantUuid, ...(siteId ? { siteId } : {}) },
       orderBy: { createdAt: 'asc' },
     });
+    if (zones.length === 0) return [];
+
+    const grouped = await this.prisma.task.groupBy({
+      by: ['zoneId'],
+      where: {
+        tenantUuid,
+        zoneId: { in: zones.map((zone) => zone.id) },
+        status: { in: [TaskStatus.pending, TaskStatus.in_progress] },
+        ...(actorRole !== UserRole.ADMIN ? { assigneeRole: actorRole } : {}),
+      },
+      _count: { _all: true },
+    });
+    const counts = new Map(grouped.map((row) => [row.zoneId, row._count._all]));
+
+    return zones.map((zone) => ({ ...zone, openTaskCount: counts.get(zone.id) ?? 0 }));
   }
 
   async findOne(id: string, tenantUuid: string): Promise<Zone> {
@@ -73,10 +100,11 @@ export class ZonesService {
   }
 
   /**
-   * Recalcula `zoneId` de todas as lixeiras do Site após uma escrita de zona.
-   * Reusa `findZoneIdForPoint` (geo.util) com as zonas ordenadas por criação
-   * (desempate determinístico). Coordenada efetiva: a própria (outdoor) ou a da
-   * construção (indoor). Só grava as lixeiras cujo `zoneId` mudou.
+   * Recalcula `zoneId` de todas as lixeiras e tarefas do Site após uma escrita de
+   * zona. Reusa `findZoneIdForPoint` (geo.util) com as zonas ordenadas por criação
+   * (desempate determinístico). Coordenada efetiva da lixeira: a própria (outdoor)
+   * ou a da construção (indoor); a da tarefa segue a cadeia lixeira → construção →
+   * câmera → própria. Só grava os registros cujo `zoneId` mudou.
    */
   private async recomputeSiteZones(tenantUuid: string, siteId: string): Promise<void> {
     const zones = await this.prisma.zone.findMany({
@@ -97,11 +125,15 @@ export class ZonesService {
     });
 
     const updates: Prisma.PrismaPromise<unknown>[] = [];
+    // Zona nova de cada lixeira, usada logo abaixo pelas tarefas vinculadas a ela
+    // (a tarefa herda o belonging já recalculado, não o que está no banco).
+    const binZones = new Map<string, string | null>();
     for (const bin of bins) {
       const lat = bin.latitude ?? bin.location?.latitude ?? null;
       const lng = bin.longitude ?? bin.location?.longitude ?? null;
       const nextZoneId =
         lat != null && lng != null ? findZoneIdForPoint(lat, lng, zones) : null;
+      binZones.set(bin.id, nextZoneId);
       if (nextZoneId !== bin.zoneId) {
         updates.push(
           this.prisma.trashBin.update({
@@ -111,6 +143,39 @@ export class ZonesService {
         );
       }
     }
+
+    const tasks = await this.prisma.task.findMany({
+      where: { tenantUuid, siteId },
+      select: {
+        id: true,
+        zoneId: true,
+        trashBinId: true,
+        latitude: true,
+        longitude: true,
+        location: { select: { latitude: true, longitude: true } },
+        camera: { select: { latitude: true, longitude: true } },
+      },
+    });
+
+    for (const task of tasks) {
+      let nextZoneId: string | null;
+      if (task.trashBinId && binZones.has(task.trashBinId)) {
+        nextZoneId = binZones.get(task.trashBinId) ?? null;
+      } else {
+        const lat = task.location?.latitude ?? task.camera?.latitude ?? task.latitude ?? null;
+        const lng = task.location?.longitude ?? task.camera?.longitude ?? task.longitude ?? null;
+        nextZoneId = lat != null && lng != null ? findZoneIdForPoint(lat, lng, zones) : null;
+      }
+      if (nextZoneId !== task.zoneId) {
+        updates.push(
+          this.prisma.task.update({
+            where: { id: task.id },
+            data: { zoneId: nextZoneId },
+          }),
+        );
+      }
+    }
+
     if (updates.length > 0) await this.prisma.$transaction(updates);
   }
 

@@ -22,6 +22,12 @@ export interface Task {
     longitude: number;
   } | null;
   cameraId: string | null;
+  /**
+   * Zona onde a tarefa caiu, derivada no back pela coordenada efetiva (própria ou
+   * do recurso vinculado). `null` = fora de qualquer zona — estado válido.
+   */
+  zoneId: string | null;
+  zone: { id: string; name: string; color: string | null } | null;
   // Coordenadas próprias quando a tarefa foi posicionada livremente no mapa.
   latitude: number | null;
   longitude: number | null;

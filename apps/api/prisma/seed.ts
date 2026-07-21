@@ -9,21 +9,130 @@ function daysAgo(n: number): Date {
   return new Date(Date.now() - n * DAY_MS);
 }
 
-// Retângulo GeoJSON (Polygon) a partir de oeste/sul/leste/norte. Anel fechado em
-// [lng, lat]. Usado para semear o contorno do recinto e as zonas de demonstração.
-function rectPolygon(w: number, s: number, e: number, n: number) {
-  return {
-    type: 'Polygon' as const,
-    coordinates: [
-      [
-        [w, s],
-        [e, s],
-        [e, n],
-        [w, n],
-        [w, s],
-      ],
-    ],
+// --- Contorno orgânico do recinto -------------------------------------------
+// O contorno de demonstração era o bbox das posições, o que dava um retângulo
+// perfeito no mapa — e, com as zonas dividindo esse mesmo retângulo ao meio, a
+// tela virava três quadrados empilhados. Aqui geramos um contorno arredondado
+// que segue o formato da nuvem de posições, parecido com o muro/cerca de um
+// parque ou campus real.
+//
+// Não dá para cravar um polígono real (ex.: o do Ibirapuera): o seed tem
+// tenants em cidades diferentes (SP e Curitiba). Então derivamos a forma dos
+// próprios dados, de modo determinístico — mesmo seed, mesmo contorno.
+
+const RING_STEPS = 48; // vértices do anel (7,5° por passo)
+const SMOOTH_WINDOW = 2; // vizinhos de cada lado na suavização circular
+const RING_MARGIN = 1.22; // folga sobre o raio de suporte (22%)
+
+interface Pt {
+  lat: number;
+  lon: number;
+}
+
+// Longitude encolhe com a latitude; trabalhamos num espaço local em que 1
+// unidade em x e em y têm a mesma distância, senão o contorno sai achatado.
+function lonScale(lat: number): number {
+  return Math.cos((lat * Math.PI) / 180);
+}
+
+// Contorno orgânico contendo todas as posições. Para cada direção ao redor do
+// centro, o raio é o quanto a nuvem de pontos "avança" naquele sentido (função
+// de suporte); suavizamos esse perfil e aplicamos uma folga, o que arredonda os
+// cantos e mantém a silhueta alongada onde os pontos são alongados.
+function organicBoundary(points: Pt[]) {
+  const lat0 = points.reduce((a, p) => a + p.lat, 0) / points.length;
+  const kx = lonScale(lat0);
+  // Espaço local isométrico, com o centro dos pontos na origem.
+  const xs = points.map((p) => p.lon * kx);
+  const ys = points.map((p) => p.lat);
+  const cx = xs.reduce((a, v) => a + v, 0) / xs.length;
+  const cy = ys.reduce((a, v) => a + v, 0) / ys.length;
+  const rel = points.map((_, i) => ({ x: xs[i] - cx, y: ys[i] - cy }));
+
+  const maxDist = Math.max(...rel.map((p) => Math.hypot(p.x, p.y)));
+  // Piso do raio: impede que a forma "afunde" nas direções sem posição alguma
+  // (o recinto ficaria com uma mordida côncava). Também cobre o caso de uma
+  // única posição, em que todos os raios de suporte seriam zero.
+  const floor = Math.max(maxDist * 0.55, 0.0009);
+
+  const angles = Array.from({ length: RING_STEPS }, (_, i) => (2 * Math.PI * i) / RING_STEPS);
+  const raw = angles.map((a) => {
+    const ux = Math.cos(a);
+    const uy = Math.sin(a);
+    const support = Math.max(...rel.map((p) => p.x * ux + p.y * uy));
+    return Math.max(support, floor);
+  });
+
+  // Média móvel circular: tira os cantos vivos que a função de suporte deixa.
+  const smooth = raw.map((_, i) => {
+    let sum = 0;
+    for (let d = -SMOOTH_WINDOW; d <= SMOOTH_WINDOW; d++) {
+      sum += raw[(i + d + RING_STEPS) % RING_STEPS];
+    }
+    return sum / (SMOOTH_WINDOW * 2 + 1);
+  });
+
+  // Fecha o anel repetindo o primeiro vértice, convertendo de volta para [lng, lat].
+  const ringAt = (grow: number) => {
+    const ring = angles.map((a, i) => {
+      const r = smooth[i] * RING_MARGIN * grow;
+      return [(cx + r * Math.cos(a)) / kx, cy + r * Math.sin(a)] as [number, number];
+    });
+    return [...ring, ring[0]];
   };
+
+  // A suavização pode encolher o raio num pico isolado, então conferimos que
+  // toda posição continua dentro e crescemos o anel até caber. Converge em uma
+  // ou duas voltas; o limite só evita laço infinito com dado degenerado.
+  let grow = 1;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const ring = ringAt(grow);
+    if (points.every((p) => pointInRing(p.lon, p.lat, ring))) break;
+    grow *= 1.06;
+  }
+
+  return { type: 'Polygon' as const, coordinates: [ringAt(grow)] };
+}
+
+// Ray casting padrão sobre um anel fechado [lng, lat].
+function pointInRing(lon: number, lat: number, ring: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 2; i < ring.length - 1; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// Recorta o polígono por um meio-plano vertical (Sutherland–Hodgman). Usado para
+// partir o recinto em zonas Oeste/Leste que acompanham o contorno em vez de
+// serem retângulos soltos por cima dele.
+function clipByMeridian(
+  polygon: { coordinates: [number, number][][] },
+  meridian: number,
+  side: 'west' | 'east',
+) {
+  const keep = (lon: number) => (side === 'west' ? lon <= meridian : lon >= meridian);
+  const ring = polygon.coordinates[0].slice(0, -1); // sem o vértice repetido
+  const out: [number, number][] = [];
+
+  for (let i = 0; i < ring.length; i++) {
+    const cur = ring[i];
+    const prev = ring[(i + ring.length - 1) % ring.length];
+    const curIn = keep(cur[0]);
+    const prevIn = keep(prev[0]);
+    if (curIn !== prevIn) {
+      // Interseção da aresta com o meridiano.
+      const t = (meridian - prev[0]) / (cur[0] - prev[0]);
+      out.push([meridian, prev[1] + t * (cur[1] - prev[1])]);
+    }
+    if (curIn) out.push(cur);
+  }
+
+  return { type: 'Polygon' as const, coordinates: [[...out, out[0]]] };
 }
 
 // ---------------------------------------------------------------------------
@@ -178,26 +287,18 @@ async function seedTenant(cfg: TenantSeed): Promise<void> {
   );
 
   // --- Demonstração das Fases 1 e 2 -------------------------------------------
-  // Contorno do recinto: bbox de todas as posições + folga (~18%). O front usa
-  // isso para a máscara e os limites de pan. Duas zonas (Oeste/Leste) dividem o
-  // recinto pelo meridiano central, de modo que toda lixeira cai em uma zona.
-  const lats = cfg.locations.map((l) => l.lat);
-  const lons = cfg.locations.map((l) => l.lon);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLon = Math.min(...lons);
-  const maxLon = Math.max(...lons);
-  const padLat = Math.max((maxLat - minLat) * 0.18, 0.0012);
-  const padLon = Math.max((maxLon - minLon) * 0.18, 0.0012);
-  const west = minLon - padLon;
-  const east = maxLon + padLon;
-  const south = minLat - padLat;
-  const north = maxLat + padLat;
-  const midLon = (west + east) / 2;
+  // Contorno do recinto: anel orgânico em volta das posições (ver
+  // `organicBoundary`). O front usa isso para a máscara e os limites de pan.
+  // Duas zonas (Oeste/Leste) recortam esse mesmo contorno pelo meridiano
+  // central, de modo que toda lixeira cai em uma zona e as zonas acompanham a
+  // borda do recinto em vez de estourarem para fora dela.
+  const boundary = organicBoundary(cfg.locations);
+  const ringLons = boundary.coordinates[0].map(([lon]) => lon);
+  const midLon = (Math.min(...ringLons) + Math.max(...ringLons)) / 2;
 
   await prisma.site.update({
     where: { id: site.id },
-    data: { boundary: rectPolygon(west, south, east, north) },
+    data: { boundary },
   });
 
   const zoneOeste = await prisma.zone.create({
@@ -207,7 +308,7 @@ async function seedTenant(cfg: TenantSeed): Promise<void> {
       name: 'Zona Oeste',
       category: 'Operação',
       color: '#2563eb',
-      polygon: rectPolygon(west, south, midLon, north),
+      polygon: clipByMeridian(boundary, midLon, 'west'),
     },
   });
   const zoneLeste = await prisma.zone.create({
@@ -217,7 +318,7 @@ async function seedTenant(cfg: TenantSeed): Promise<void> {
       name: 'Zona Leste',
       category: 'Operação',
       color: '#16a34a',
-      polygon: rectPolygon(midLon, south, east, north),
+      polygon: clipByMeridian(boundary, midLon, 'east'),
     },
   });
   // Lixeira indoor herda a coordenada da construção: a zona é decidida pela

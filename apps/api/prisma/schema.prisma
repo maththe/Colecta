@@ -110,6 +110,7 @@ model Zone {
   updatedAt  DateTime @updatedAt
 
   trashBins TrashBin[]
+  tasks     Task[]
 
   @@index([tenantUuid])
   @@index([siteId])
@@ -294,6 +295,11 @@ model Task {
   // trashBin/location/camera → coord (Turf) → Site default do tenant.
   siteId       String       @db.Uuid
   site         Site         @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  // Zona temática (opcional), simétrica a TrashBin.zoneId: derivada da coordenada
+  // efetiva da tarefa (própria, ou do recurso vinculado) e recalculada quando a
+  // tarefa muda de vínculo/posição ou a zona muda. NULL = fora de qualquer zona.
+  zoneId       String?      @db.Uuid
+  zone         Zone?        @relation(fields: [zoneId], references: [id], onDelete: SetNull)
   // Coordenadas próprias para tarefas posicionadas livremente no mapa (sem
   // vínculo a lixeira/posição/câmera). Preenchidas juntas ou ambas nulas.
   latitude     Float?
@@ -322,6 +328,7 @@ model Task {
   @@index([assigneeRole])
   @@index([cameraId])
   @@index([siteId])
+  @@index([zoneId])
   @@index([tenantUuid, trashBinId, kind, status])
   @@index([tenantUuid, completedAt])
   @@map("tasks")

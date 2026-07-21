@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, MapPin, Pencil, Play, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Layers, MapPin, Pencil, Play, Trash2 } from 'lucide-react';
 import { USER_ROLE_LABELS, type Task } from '@/types';
 import { TaskPriorityBadge, TaskStatusBadge } from './TaskBadges';
 import { Modal } from '@/components/Modal';
@@ -71,6 +71,20 @@ export function TaskDetailsModal({
                 </span>
               ) : (
                 <span className="text-muted-foreground">—</span>
+              )}
+            </DetailRow>
+
+            <DetailRow label="Zona">
+              {task.zone ? (
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <Layers
+                    className="h-4 w-4"
+                    style={task.zone.color ? { color: task.zone.color } : undefined}
+                  />
+                  <span>{task.zone.name}</span>
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Fora de zona</span>
               )}
             </DetailRow>
 

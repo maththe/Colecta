@@ -17,7 +17,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 
 // Subconjunto do PrismaClient que esta util precisa — aceita tanto o PrismaService
 // (Nest) quanto o `new PrismaClient()` do seed.
-type PrismaLike = Pick<PrismaClient, 'site' | 'location' | 'trashBin' | 'camera'>;
+type PrismaLike = Pick<PrismaClient, 'site' | 'location' | 'trashBin' | 'camera' | 'zone'>;
 
 export interface ResolveSiteInput {
   tenantUuid: string;
@@ -167,6 +167,58 @@ export async function resolveTaskSiteId(
 
   // Tarefa avulsa: trata como outdoor (coord → default).
   return resolveSiteId(prisma, { tenantUuid, locationId: null, siteId: null, latitude, longitude });
+}
+
+export interface ResolveTaskZoneInput extends ResolveTaskSiteInput {
+  /** Site já resolvido da tarefa: limita as zonas candidatas ao recinto dela. */
+  siteId: string;
+}
+
+/**
+ * Resolve o `zoneId` de uma TAREFA pela mesma cadeia do Site: trashBin →
+ * location → camera → coordenada própria. A tarefa vinculada a uma lixeira herda
+ * o `zoneId` já resolvido dela (fonte única do belonging da lixeira); nos demais
+ * casos cai no Turf sobre a coordenada efetiva. `null` = fora de qualquer zona,
+ * que é um estado válido (não há fallback para "zona default").
+ */
+export async function resolveTaskZoneId(
+  prisma: PrismaLike,
+  input: ResolveTaskZoneInput,
+): Promise<string | null> {
+  const { tenantUuid, siteId, trashBinId, locationId, cameraId, latitude, longitude } = input;
+
+  if (trashBinId) {
+    const bin = await prisma.trashBin.findFirst({
+      where: { id: trashBinId, tenantUuid },
+      select: { zoneId: true },
+    });
+    if (bin) return bin.zoneId;
+  }
+
+  // Sem lixeira: usa a coordenada do recurso vinculado, ou a da própria tarefa.
+  let lat = latitude ?? null;
+  let lng = longitude ?? null;
+  if (locationId) {
+    const location = await prisma.location.findFirst({
+      where: { id: locationId, tenantUuid },
+      select: { latitude: true, longitude: true },
+    });
+    if (location) [lat, lng] = [location.latitude, location.longitude];
+  } else if (cameraId) {
+    const camera = await prisma.camera.findFirst({
+      where: { id: cameraId, tenantUuid },
+      select: { latitude: true, longitude: true },
+    });
+    if (camera) [lat, lng] = [camera.latitude, camera.longitude];
+  }
+  if (lat == null || lng == null) return null;
+
+  const zones = await prisma.zone.findMany({
+    where: { tenantUuid, siteId },
+    select: { id: true, polygon: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  return findZoneIdForPoint(lat, lng, zones);
 }
 
 /**

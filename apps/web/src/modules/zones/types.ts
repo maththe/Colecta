@@ -15,6 +15,11 @@ export interface Zone {
   category: string | null;
   color: string | null;
   polygon: ZonePolygon;
+  /**
+   * Tarefas abertas na zona, já filtradas pela visibilidade do papel. Só vem em
+   * `GET /zones` (listagem); ausente nas respostas de escrita e no get por id.
+   */
+  openTaskCount?: number;
   createdAt: string;
   updatedAt: string;
 }

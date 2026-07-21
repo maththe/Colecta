@@ -20,14 +20,17 @@ import { CreateZoneDto } from './dto/create-zone.dto';
 import { UpdateZoneDto } from './dto/update-zone.dto';
 import { ZonesService } from './zones.service';
 
+type AuthenticatedRequest = Request & { user?: { role?: UserRole } };
+
 @Controller('zones')
 export class ZonesController {
   constructor(private readonly service: ZonesService) {}
 
-  // Leitura liberada a qualquer papel autenticado (o mapa exibe as zonas).
+  // Leitura liberada a qualquer papel autenticado (o mapa exibe as zonas). O
+  // papel vai junto porque a contagem de tarefas abertas é filtrada por equipe.
   @Get()
-  findAll(@Req() req: Request, @Query('siteId') siteId?: string) {
-    return this.service.findAll(getTenantUuid(req), siteId);
+  findAll(@Req() req: AuthenticatedRequest, @Query('siteId') siteId?: string) {
+    return this.service.findAll(getTenantUuid(req), siteId, req.user?.role);
   }
 
   @Get(':id')

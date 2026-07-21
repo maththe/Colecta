@@ -189,7 +189,15 @@ export function TrashBinMap({
       style={{ height: '100%', width: '100%' }}
       scrollWheelZoom
     >
-      <SiteMapLayers site={site} zones={zones} showZones={showZones} />
+      {/* No modo de seleção as zonas param de capturar cliques, senão o polígono
+          engole o clique (abre o popup da zona) e não dá para posicionar uma
+          tarefa dentro de uma zona. */}
+      <SiteMapLayers
+        site={site}
+        zones={zones}
+        showZones={showZones}
+        zonesInteractive={!picking}
+      />
       {canEditSite && onSaveSite && <SiteBoundaryEditor site={site} onSave={onSaveSite} />}
       {canEditSite && onZonesChanged && (
         <ZoneEditor site={site} zones={zones} onChanged={onZonesChanged} />

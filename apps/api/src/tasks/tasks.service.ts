@@ -28,12 +28,13 @@ import {
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailerService } from '../mailer/mailer.service';
 import { isEmployeeRole, isTaskAssigneeRole } from '../auth/role-groups';
-import { resolveTaskSiteId } from '../common/geo.util';
+import { resolveTaskSiteId, resolveTaskZoneId } from '../common/geo.util';
 
 type TaskWithBin = Prisma.TaskGetPayload<{
   include: {
     trashBin: { select: { id: true; name: true; code: true } };
     location: { select: { id: true; name: true; latitude: true; longitude: true } };
+    zone: { select: { id: true; name: true; color: true } };
     startedBy: { select: { id: true; name: true } };
   };
 }>;
@@ -41,6 +42,7 @@ type TaskWithBin = Prisma.TaskGetPayload<{
 const taskInclude = {
   trashBin: { select: { id: true, name: true, code: true } },
   location: { select: { id: true, name: true, latitude: true, longitude: true } },
+  zone: { select: { id: true, name: true, color: true } },
   startedBy: { select: { id: true, name: true } },
 } satisfies Prisma.TaskInclude;
 
@@ -113,6 +115,15 @@ export class TasksService {
       latitude: dto.latitude ?? null,
       longitude: dto.longitude ?? null,
     });
+    const zoneId = await resolveTaskZoneId(this.prisma, {
+      tenantUuid,
+      siteId,
+      trashBinId: dto.trashBinId ?? null,
+      locationId: dto.locationId ?? null,
+      cameraId: dto.cameraId ?? null,
+      latitude: dto.latitude ?? null,
+      longitude: dto.longitude ?? null,
+    });
 
     const data: Prisma.TaskCreateInput = {
       tenantUuid,
@@ -129,6 +140,7 @@ export class TasksService {
       posX: dto.posX ?? null,
       posY: dto.posY ?? null,
       site: { connect: { id: siteId } },
+      zone: zoneId ? { connect: { id: zoneId } } : undefined,
       trashBin: dto.trashBinId ? { connect: { id: dto.trashBinId } } : undefined,
       location: dto.locationId ? { connect: { id: dto.locationId } } : undefined,
       camera: dto.cameraId ? { connect: { id: dto.cameraId } } : undefined,
@@ -153,6 +165,13 @@ export class TasksService {
       locationId: dto.locationId ?? null,
       cameraId: dto.cameraId ?? null,
     });
+    const zoneId = await resolveTaskZoneId(this.prisma, {
+      tenantUuid,
+      siteId,
+      trashBinId: dto.trashBinId ?? null,
+      locationId: dto.locationId ?? null,
+      cameraId: dto.cameraId ?? null,
+    });
 
     const created = await this.prisma.task.create({
       data: {
@@ -166,6 +185,7 @@ export class TasksService {
         assigneeName: null,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
         site: { connect: { id: siteId } },
+        zone: zoneId ? { connect: { id: zoneId } } : undefined,
         trashBin: dto.trashBinId ? { connect: { id: dto.trashBinId } } : undefined,
         location: dto.locationId ? { connect: { id: dto.locationId } } : undefined,
         camera: dto.cameraId ? { connect: { id: dto.cameraId } } : undefined,
@@ -259,17 +279,21 @@ export class TasksService {
       data.completedAt = null;
     }
 
-    // Recomputa o Site quando o vínculo (lixeira/construção) muda.
+    // Recomputa Site e zona quando o vínculo (lixeira/construção) muda: os dois
+    // são derivados da mesma cadeia, então andam juntos.
     if (dto.trashBinId !== undefined || dto.locationId !== undefined) {
-      const siteId = await resolveTaskSiteId(this.prisma, {
+      const chain = {
         tenantUuid,
         trashBinId: dto.trashBinId !== undefined ? dto.trashBinId : current.trashBinId,
         locationId: dto.locationId !== undefined ? dto.locationId : current.locationId,
         cameraId: current.cameraId,
         latitude: current.latitude,
         longitude: current.longitude,
-      });
+      };
+      const siteId = await resolveTaskSiteId(this.prisma, chain);
       data.site = { connect: { id: siteId } };
+      const zoneId = await resolveTaskZoneId(this.prisma, { ...chain, siteId });
+      data.zone = zoneId ? { connect: { id: zoneId } } : { disconnect: true };
     }
 
     return this.prisma.task.update({
@@ -317,6 +341,12 @@ export class TasksService {
         tenantUuid,
         trashBinId: bin.id,
       });
+      // Auto-tarefa herda a zona já resolvida da lixeira.
+      const zoneId = await resolveTaskZoneId(this.prisma, {
+        tenantUuid,
+        siteId,
+        trashBinId: bin.id,
+      });
       const created = await this.prisma.task.create({
         data: {
           tenantUuid,
@@ -328,6 +358,7 @@ export class TasksService {
           issues,
           assigneeRole: UserRole.LIMPEZA,
           site: { connect: { id: siteId } },
+          zone: zoneId ? { connect: { id: zoneId } } : undefined,
           trashBin: { connect: { id: bin.id } },
           dueDate: computeDueDate(issues, now),
         },

@@ -62,13 +62,21 @@ export function isPointInsideBoundary(
 export interface SiteMask {
   /** Máscara "mundo-com-buraco" recortando o recinto (renderizada como GeoJSON). */
   maskFeature: Feature<Polygon | MultiPolygon>;
+  /** O contorno do recinto em si, desenhado por cima da máscara como linha. */
+  boundaryFeature: Feature<Polygon | MultiPolygon>;
   /** Limites de pan do mapa: bbox do recinto + padding, em Mercator válido. */
   maxBounds: L.LatLngBounds;
 }
 
 // Gera a máscara via Turf (winding correto) e os maxBounds a partir do boundary.
-// O anel externo é o bbox do Site com padding — não o globo ±90. Sem boundary
-// válido, retorna null (front trata como "sem recorte/sem limites").
+//
+// O anel externo cobre o mundo inteiro (clampado ao Mercator válido, nunca ±90):
+// assim o escurecimento "fora do recinto" nunca termina numa borda visível. Um
+// anel do tamanho do bbox virava um retângulo cinza flutuando no meio do mapa
+// sempre que a viewport era maior que o recinto. Os maxBounds continuam saindo
+// do bbox + padding — são o limite de pan, não o desenho.
+//
+// Sem boundary válido, retorna null (front trata como "sem recorte/sem limites").
 export function buildSiteMask(boundary: SiteBoundary): SiteMask | null {
   const geometry = boundaryGeometry(boundary);
   if (!geometry) return null;
@@ -78,16 +86,19 @@ export function buildSiteMask(boundary: SiteBoundary): SiteMask | null {
   // a latitude ao limite do Mercator.
   const padX = Math.max((maxX - minX) * 0.5, 0.002);
   const padY = Math.max((maxY - minY) * 0.5, 0.002);
-  const west = minX - padX;
-  const east = maxX + padX;
-  const south = clampLat(minY - padY);
-  const north = clampLat(maxY + padY);
 
-  const outer = bboxPolygon([west, south, east, north]);
+  const outer = bboxPolygon([-180, -MERCATOR_MAX_LAT, 180, MERCATOR_MAX_LAT]);
   const maskFeature = turfMask(geometry, outer) as Feature<Polygon | MultiPolygon>;
-  const maxBounds = L.latLngBounds([south, west], [north, east]);
+  const maxBounds = L.latLngBounds(
+    [clampLat(minY - padY), minX - padX],
+    [clampLat(maxY + padY), maxX + padX],
+  );
 
-  return { maskFeature, maxBounds };
+  return {
+    maskFeature,
+    boundaryFeature: { type: 'Feature', properties: {}, geometry },
+    maxBounds,
+  };
 }
 
 function clampLat(lat: number): number {

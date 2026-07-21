@@ -27,6 +27,15 @@ export function SiteBoundaryEditor({ site, onSave }: Props) {
   const [error, setError] = useState<string | null>(null);
   // Camada do polígono em edição (desenhado ou carregado do boundary salvo).
   const boundaryLayerRef = useRef<L.Polygon | null>(null);
+  // Contorno salvo lido por ref, e não pelas deps do efeito: o polling do mapa
+  // (a cada 20s) devolve um `site` novo a cada refetch, e depender de
+  // `site.boundary` remontava os controles do geoman no meio da edição —
+  // cancelando o desenho em andamento e substituindo a camada de trabalho pelo
+  // contorno antigo (que era então re-salvo por cima do desenho do usuário).
+  const savedBoundaryRef = useRef(site.boundary);
+  useEffect(() => {
+    savedBoundaryRef.current = site.boundary;
+  }, [site.boundary]);
 
   // Remove a camada de edição do mapa (ao cancelar/sair ou antes de redesenhar).
   const clearWorkingLayer = useCallback(() => {
@@ -59,7 +68,7 @@ export function SiteBoundaryEditor({ site, onSave }: Props) {
     });
 
     // Carrega o contorno salvo como camada editável (se houver).
-    const existing = firstPolygon(boundaryGeometry(site.boundary));
+    const existing = firstPolygon(boundaryGeometry(savedBoundaryRef.current));
     if (existing) {
       const layer = L.polygon(polygonToLatLngs(existing));
       layer.addTo(map);
@@ -75,15 +84,25 @@ export function SiteBoundaryEditor({ site, onSave }: Props) {
     };
     map.on('pm:create', handleCreate);
 
+    // Remover o polígono pela lixeira do geoman zera a camada de trabalho: sem
+    // isso, "Salvar contorno" reenviava a camada já apagada em vez de null.
+    const handleRemove = (e: { layer: L.Layer }) => {
+      if (boundaryLayerRef.current === e.layer) boundaryLayerRef.current = null;
+    };
+    map.on('pm:remove', handleRemove);
+
     return () => {
       map.off('pm:create', handleCreate);
+      map.off('pm:remove', handleRemove);
       map.pm.removeControls();
       map.pm.disableGlobalEditMode();
       map.pm.disableGlobalDragMode();
       map.pm.disableGlobalRemovalMode();
       map.pm.disableDraw();
     };
-  }, [editing, map, site.boundary]);
+    // Deps só de `editing`/`map`: o ciclo de vida dos controles é do modo de
+    // edição, não de cada refetch do Site (ver `savedBoundaryRef`).
+  }, [editing, map]);
 
   function startEditing() {
     setError(null);
