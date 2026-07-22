@@ -106,14 +106,24 @@ function MapClickHandler({
   return null;
 }
 
+// Zoom usado ao focar um marcador vindo de um deep-link ("Visualizar no mapa").
+const FOCUS_ZOOM = 17;
+// Quando abrir o popup depois de mandar o mapa ao alvo (o mapa já assentou).
+const FOCUS_POPUP_DELAY_MS = 350;
+// Rede de segurança: se a animação de zoom não fixar o alvo até aqui, pousa
+// instantâneo. Curto de propósito, para não ficar um zoom intermediário à vista.
+const FOCUS_LAND_TIMEOUT_MS = 500;
+
 // Drives the camera to a target bin/location and opens its popup when the
 // focus id changes. Lives inside MapContainer so it can access the map.
 function MapFocus({
   target,
   markerRefs,
+  clusterRef,
 }: {
   target: { key: string; lat: number; lng: number } | null;
   markerRefs: React.MutableRefObject<Record<string, L.Marker | null>>;
+  clusterRef: React.MutableRefObject<L.MarkerClusterGroup | null>;
 }) {
   const map = useMap();
   const key = target?.key;
@@ -121,11 +131,69 @@ function MapFocus({
   const lng = target?.lng;
   useEffect(() => {
     if (!key || lat === undefined || lng === undefined) return;
-    map.flyTo([lat, lng], 17, { duration: 1 });
-    // Open the popup once the fly animation has settled.
-    const timer = setTimeout(() => markerRefs.current[key]?.openPopup(), 600);
-    return () => clearTimeout(timer);
-  }, [key, lat, lng, map, markerRefs]);
+    const targetLatLng: [number, number] = [lat, lng];
+
+    // Os maxBounds do recinto (SiteMapLayers) ficam suspensos durante o foco:
+    // sem isso, uma lixeira perto da borda não centraliza (o clamp _limitCenter
+    // empurra o centro para caber a viewport dentro do recinto). Restaurados no
+    // fim; ao restaurar, o Leaflet reajusta se a viewport passar da borda.
+    const savedBounds = map.options.maxBounds;
+    let boundsRestored = false;
+    const restoreBounds = () => {
+      if (boundsRestored) return;
+      boundsRestored = true;
+      if (savedBounds) map.setMaxBounds(savedBounds);
+    };
+    if (savedBounds) map.setMaxBounds(undefined as unknown as L.LatLngBounds);
+
+    // setView (não flyTo): garante que o zoom acontece. O flyTo depende de uma
+    // sequência de frames de animação que, neste mapa mais pesado (máscara +
+    // cluster + limites), às vezes era interrompida e o zoom simplesmente não
+    // acontecia. O setView anima quando dá e cai para instantâneo quando não dá
+    // — o mapa SEMPRE termina no zoom do alvo.
+    map.setView(targetLatLng, FOCUS_ZOOM, { animate: true });
+
+    // Garante o pouso mesmo que a animação não fixe o zoom (aba em segundo
+    // plano, transição engolida): força o alvo sem animar. E restaura os
+    // limites do recinto.
+    const landTimer = setTimeout(() => {
+      if (map.getZoom() !== FOCUS_ZOOM) {
+        map.setView(targetLatLng, FOCUS_ZOOM, { animate: false });
+      }
+      restoreBounds();
+    }, FOCUS_LAND_TIMEOUT_MS);
+
+    // Abre o popup do alvo. Duas diferenças em relação ao mapa antigo: (1) a
+    // lixeira agora vive num cluster, então openPopup direto no marcador seria
+    // ignorado — o plugin precisa revelá-lo (zoom/spiderfy) antes; (2) na carga
+    // inicial os <Marker> são anexados depois deste efeito, então o marcador
+    // pode ainda não existir. Nos dois casos, tenta de novo em seguida.
+    let cancelled = false;
+    let attempts = 0;
+    let popupTimer: ReturnType<typeof setTimeout> | undefined;
+    const openPopup = () => {
+      if (cancelled) return;
+      const marker = markerRefs.current[key];
+      const cluster = clusterRef.current;
+      if (marker && cluster?.hasLayer(marker)) {
+        cluster.zoomToShowLayer(marker, () => marker.openPopup());
+        return;
+      }
+      if (marker && (marker as unknown as { _map?: unknown })._map) {
+        marker.openPopup();
+        return;
+      }
+      if (attempts++ < 20) popupTimer = setTimeout(openPopup, 100);
+    };
+    popupTimer = setTimeout(openPopup, FOCUS_POPUP_DELAY_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(popupTimer);
+      clearTimeout(landTimer);
+      restoreBounds();
+    };
+  }, [key, lat, lng, map, markerRefs, clusterRef]);
   return null;
 }
 
@@ -155,6 +223,9 @@ export function TrashBinMap({
   focusTaskId,
 }: Props) {
   const markerRefs = useRef<Record<string, L.Marker | null>>({});
+  // Instância do MarkerClusterGroup: o foco usa `zoomToShowLayer` para abrir o
+  // popup de uma lixeira que ainda esteja dentro de um cluster.
+  const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
 
   // Só as lixeiras ao ar livre vão ao mapa principal (as de construção vivem na
   // planta do andar). Renderizadas na coordenada exata — sem spreadBins.
@@ -202,7 +273,7 @@ export function TrashBinMap({
       {canEditSite && onZonesChanged && (
         <ZoneEditor site={site} zones={zones} onChanged={onZonesChanged} />
       )}
-      <MapFocus target={focusTarget} markerRefs={markerRefs} />
+      <MapFocus target={focusTarget} markerRefs={markerRefs} clusterRef={clusterRef} />
       <MapClickHandler picking={picking} onPickPoint={onPickPoint} />
       {locations.map((location) => (
         <Marker
@@ -239,7 +310,7 @@ export function TrashBinMap({
           andar (mapa da construção). Aqui só as lixeiras "ao ar livre",
           agrupadas em cluster e na coordenada exata. A `key={bin.id}` estável em
           cada Marker prepara a convivência com o polling da Fase 3. */}
-      <MarkerClusterGroup chunkedLoading>
+      <MarkerClusterGroup chunkedLoading ref={clusterRef}>
       {outdoorBins.map((bin) => (
         <Marker
           key={bin.id}

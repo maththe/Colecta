@@ -1,0 +1,38 @@
+# Blueprint da Render: banco Postgres + API (Docker).
+# O front NÃO fica aqui — vai para a Vercel (ver vercel.json e docs/DEPLOY.md).
+#
+# Uso: Render > New > Blueprint > aponta para este repositório.
+
+databases:
+  - name: colecta-db
+    databaseName: colecta
+    user: colecta
+    plan: free
+    region: oregon
+
+services:
+  - type: web
+    name: colecta-api
+    runtime: docker
+    plan: free
+    region: oregon
+    # O Dockerfile já roda `prisma generate` no build e `prisma migrate deploy`
+    # no start (apps/api/docker-entrypoint.sh). O contexto precisa ser a raiz.
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: colecta-db
+          property: connectionString
+      # Gerado pela Render no primeiro deploy e mantido entre deploys.
+      # Trocar o valor invalida todos os tokens já emitidos.
+      - key: JWT_SECRET
+        generateValue: true
+      # No plano free o serviço dorme após 15 min sem tráfego HTTP; a conexão
+      # MQTT cai junto e as leituras publicadas nesse intervalo são perdidas.
+      # Ligue apenas se aceitar essa lacuna.
+      - key: MQTT_INGEST_ENABLED
+        value: "false"
+    # PORT é injetada pela Render; apps/api/src/main.ts já lê process.env.PORT.

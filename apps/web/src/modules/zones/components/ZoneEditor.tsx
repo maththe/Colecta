@@ -6,6 +6,7 @@ import type { Feature, Polygon } from 'geojson';
 import { Check, Layers, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Input } from '@/components/ui/input';
 import type { Site } from '@/modules/sites/types';
 import {
@@ -44,6 +45,10 @@ export function ZoneEditor({ site, zones, onChanged }: Props) {
   const [form, setForm] = useState<ZoneForm>({ name: '', category: '', color: DEFAULT_ZONE_COLORS[0] });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Zona marcada para exclusão, aguardando confirmação no diálogo.
+  const [pendingDelete, setPendingDelete] = useState<Zone | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   // Polígono em edição/desenho (geoman).
   const workingLayerRef = useRef<L.Polygon | null>(null);
 
@@ -146,18 +151,29 @@ export function ZoneEditor({ site, zones, onChanged }: Props) {
     }
   }
 
-  async function remove(zone: Zone) {
+  function requestRemove(zone: Zone) {
     if (busy) return;
-    if (!window.confirm(`Excluir a zona "${zone.name}"?`)) return;
-    setBusy(true);
-    setError(null);
+    setDeleteError(null);
+    setPendingDelete(zone);
+  }
+
+  function cancelRemove() {
+    setPendingDelete(null);
+    setDeleteError(null);
+  }
+
+  async function confirmRemove() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
     try {
-      await api.zones.remove(zone.id);
+      await api.zones.remove(pendingDelete.id);
+      setPendingDelete(null);
       onChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao excluir a zona.');
+      setDeleteError(err instanceof Error ? err.message : 'Falha ao excluir a zona.');
     } finally {
-      setBusy(false);
+      setDeleting(false);
     }
   }
 
@@ -250,7 +266,12 @@ export function ZoneEditor({ site, zones, onChanged }: Props) {
                         <Button type="button" size="icon-sm" variant="ghost" onClick={() => startEdit(zone)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        <Button type="button" size="icon-sm" variant="ghost" onClick={() => remove(zone)}>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => requestRemove(zone)}
+                        >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </li>
@@ -266,6 +287,26 @@ export function ZoneEditor({ site, zones, onChanged }: Props) {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Excluir zona"
+        description={
+          pendingDelete && (
+            <>
+              A zona <strong>{pendingDelete.name}</strong> será removida permanentemente. As
+              lixeiras e tarefas dela ficam sem zona (ou passam para outra zona que as contenha).
+              Esta ação não pode ser desfeita.
+            </>
+          )
+        }
+        confirmLabel="Excluir"
+        destructive
+        loading={deleting}
+        error={deleteError}
+        onConfirm={() => void confirmRemove()}
+        onCancel={cancelRemove}
+      />
     </div>
   );
 }

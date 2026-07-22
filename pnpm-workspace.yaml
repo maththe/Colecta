@@ -1,2 +1,13 @@
 packages:
   - "apps/*"
+
+# Pacotes autorizados a rodar scripts de instalação (pnpm >= 10 bloqueia por
+# padrão). Ficava em `pnpm.onlyBuiltDependencies` no package.json, que o pnpm
+# 10.32+ ignora — sem isto, um install limpo (CI/Render/Vercel) pula o
+# postinstall do esbuild e do Prisma.
+onlyBuiltDependencies:
+  - "@nestjs/core"
+  - "@prisma/client"
+  - "@prisma/engines"
+  - prisma
+  - esbuild

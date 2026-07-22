@@ -12,3 +12,6 @@ coverage
 .cache
 .pnpm-store
 apps/api/prisma/migrations/dev.db*
+
+# Documento de negócio — fica só local, fora do repositório público
+PITCH.md
